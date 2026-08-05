@@ -14,6 +14,23 @@ Um peptídeo é um **colar de contas**.
 
 ---
 
+# Como ler uma fórmula química
+Antes de continuar, o essencial para entender os desenhos:
+
+- Cada **letra** é um tipo de átomo: N, O, C, H…
+- O **número pequeno** diz quantos átomos daquele tipo. Em **H₂**, o "2" quer dizer dois hidrogênios
+- **Sem número** = só 1 átomo daquele tipo
+- O **tracinho** (–) é o "braço" que liga o grupo ao resto da molécula
+
+Exemplos:
+- **H₂O** = 2 hidrogênios + 1 oxigênio = água
+- **–NH₂** = um nitrogênio com dois hidrogênios (o grupo amino)
+- **–COOH** = carbono + 2 oxigênios + hidrogênio (o grupo ácido)
+
+*As cores da aula: azul = nitrogênio (N), cinza = carbono (C), vermelho = oxigênio (O), claro = hidrogênio (H), verde = cadeia lateral (R).*
+
+---
+
 # O tijolo: o aminoácido
 No centro, um **carbono** (o carbono-α). Dele saem quatro braços:
 
