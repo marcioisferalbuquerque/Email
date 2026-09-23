@@ -43,3 +43,10 @@ repetidas são movidas para a lixeira.
 Vá em **Arquivo → Opções → Central de Confiabilidade →
 Configurações da Central de Confiabilidade → Configurações de Macro**
 e marque **"Notificações para todas as macros"**. Depois reinicie o Outlook.
+
+---
+
+# Agente de BIOS Intel
+
+Veja [`bios-intel/README.md`](bios-intel/README.md): agente do Claude Code que
+lê o BIOS/UEFI de PCs Intel e recomenda melhorias, sem gravar nada no firmware.
