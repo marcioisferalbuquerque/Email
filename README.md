@@ -43,3 +43,7 @@ repetidas são movidas para a lixeira.
 Vá em **Arquivo → Opções → Central de Confiabilidade →
 Configurações da Central de Confiabilidade → Configurações de Macro**
 e marque **"Notificações para todas as macros"**. Depois reinicie o Outlook.
+
+## Maré · Guaratuba (`mare/`)
+
+Web app (para salvar na tela de início do iPhone) que estima a maré em Guaratuba como média ponderada dos pontos de Paranaguá e São Francisco do Sul, usando a Open-Meteo Marine API. Não serve para navegação — confira a tábua oficial da Marinha.
