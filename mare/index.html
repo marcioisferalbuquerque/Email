@@ -334,7 +334,9 @@ const BASES = {
   celula: Object.assign({nome:"Modelo — ponto na barra de Guaratuba", curto:"modelo (barra)", serie:"g", nr:false}, BUILTIN.guaratuba_celula),
   media:  Object.assign({nome:"Modelo — média Paranaguá + S. Francisco", curto:"média P+SFS", serie:"avg", nr:false}, BUILTIN.media),
 };
-const DEFAULT_BASE = "celula";
+const DEFAULT_BASE = "maregrafo";
+BASES.maregrafo = Object.assign({nome:"Marégrafo da barra de Guaratuba (SiMCosta, 2018)", curto:"marégrafo Guaratuba 2018", serie:"g", nr:false, fonte:"Constantes harmônicas ajustadas por mim ao registro do marégrafo de radar SiMCosta/CEM-UFPR na barra de Guaratuba (estação 313, 25,857°S 48,567°W, a 1,5 km do ponto de referência): 55 dias, 30/06 a 24/08/2018, leituras a cada 15 min. K2, P1, T2 e NU2 inferidas de S2, K1 e N2 (registro curto); variação anual (SA, SSA) tomada do modelo. Validação em 20 dias fora do ajuste: erro de horário de preamar/baixa-mar de 15 min (mediana). O sensor está parado desde 2018."}, {"z0":0.0,"rms":0.17244084315672262,"dias":55.2,"c":[["M2",0.3424,163.9],["S2",0.238,170.6],["M4",0.116,343.8],["O1",0.1125,120.9],["K1",0.0777,189.5],["K2",0.0744,155.1],["M3",0.0718,157.2],["MN4",0.0666,295.4],["N2",0.0612,236.1],["SA",0.0473,42.8],["MK3",0.0464,248.4],["MS4",0.0411,91.3],["Q1",0.0374,103.3],["SSA",0.032,186.6],["2N2",0.0251,223.0],["L2",0.0245,118.8],["MU2",0.023,193.8],["P1",0.0187,165.9],["2MK3",0.0167,191.3],["T2",0.0154,166.5],["NU2",0.0082,239.9],["OO1",0.0064,327.0],["M6",0.0063,351.3],["2MS6",0.0063,25.9],["J1",0.0045,181.3]]});
+
 for(const b of Object.values(BASES)){ b.cons = b.c.map(c=>({n:c[0],H:c[1],g:c[2]})); b.ev = TP.compile(b.cons); }
 
 // ================= utilidades =================
@@ -722,7 +724,7 @@ function drawDay(svg, I, now){
 }
 
 // ================= controles =================
-const INFO = "<h2>Como é calculado</h2>\n<p><b>1. Maré astronômica.</b> Soma das componentes de maré (M2, S2, O1, K1, M4…) com as correções do ciclo de 18,6 anos da Lua, no método padrão internacional (o mesmo da NOAA e dos modelos globais). Testei o cálculo contra previsões oficiais da NOAA: erro de cerca de 1 cm e horários de preamar e baixa-mar com 0 a 6 minutos de diferença.</p>\n<p><b>2. Constantes.</b> As da base escolhida em Ajustes. As de \"modelo\" foram ajustadas a 401 dias do modelo oceânico Open-Meteo (~8 km): no ponto em frente à barra de Guaratuba (padrão) ou na média de Paranaguá e São Francisco do Sul.</p>\n<p><b>3. Efeito do tempo.</b> Diferença entre a previsão do Open-Meteo (que inclui pressão do ar e o efeito do vento que o modelo representa) e a maré astronômica do mesmo modelo, suavizada em 25 horas. Cobre cerca de 9 dias; depois disso, só a astronômica.</p>\n<p><b>4. Vento (opcional, desligado).</b> Estimativa minha: vento sul/sudoeste firme tende a subir o nível; nordeste, a baixar. Não é calibrado.</p>\n<p class=\"warn\">Dentro da baía o horário e a altura podem diferir da barra. Para atravessar a barra, use a tábua oficial da Marinha (DHN/CHM). Sem internet, o app continua mostrando a maré astronômica.</p>\n";
+const INFO = "<h2>Como é calculado</h2>\n<p><b>1. Maré astronômica.</b> Soma das componentes de maré (M2, S2, O1, K1, M4…) com as correções do ciclo de 18,6 anos da Lua, no método padrão internacional (o mesmo da NOAA e dos modelos globais). Testei o cálculo contra previsões oficiais da NOAA: erro de cerca de 1 cm e horários de preamar e baixa-mar com 0 a 6 minutos de diferença.</p>\n<p><b>2. Constantes.</b> Por padrão, as do <b>marégrafo real da barra de Guaratuba</b> (SiMCosta/CEM-UFPR, 55 dias de 2018, a 1,5 km do ponto de referência). Em \"Mais → Ajustes\" dá para trocar pelas constantes do modelo oceânico Open-Meteo (~8 km), que, comparadas ao marégrafo, adiantam a maré em cerca de 45 a 55 minutos.</p>\n<p><b>3. Efeito do tempo.</b> Diferença entre a previsão do Open-Meteo (que inclui pressão do ar e o efeito do vento que o modelo representa) e a maré astronômica do mesmo modelo, suavizada em 25 horas. Cobre cerca de 9 dias; depois disso, só a astronômica.</p>\n<p><b>4. Vento (opcional, desligado).</b> Estimativa minha: vento sul/sudoeste firme tende a subir o nível; nordeste, a baixar. Não é calibrado.</p>\n<p class=\"warn\">Dentro da baía o horário e a altura podem diferir da barra. Para atravessar a barra, use a tábua oficial da Marinha (DHN/CHM). Sem internet, o app continua mostrando a maré astronômica.</p>\n";
 $("reload").onclick = () => { if(MODE==="web") load(); else render(); };
 document.querySelectorAll("#tabs button").forEach(b=>{
   b.classList.toggle("on", b.dataset.r===range);
@@ -742,7 +744,7 @@ $("nextM").onclick = ()=> setMonth(cal.m===11? {y:cal.y+1,m:0} : {y:cal.y,m:cal.
 $("goToday").onclick = ()=>{ sel=dayStart(Date.now()); const [y,m]=dayKey(sel+12*H).split("-").map(Number); cal={y,m:m-1}; render(); };
 $("jump").addEventListener("change", e=>{ const v=e.target.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
   const [y,m,d]=v.split("-").map(Number); if(y<1990||y>2100) return; openDay(localDate(y,m-1,d)); });
-const selBase=$("optBase"); for(const [k,b] of Object.entries(BASES)){ const o=document.createElement("option"); o.value=k; o.textContent=b.nome; selBase.appendChild(o); }
+const selBase=$("optBase"); for(const [k,b] of [[DEFAULT_BASE,BASES[DEFAULT_BASE]],...Object.entries(BASES).filter(([k])=>k!==DEFAULT_BASE)]){ const o=document.createElement("option"); o.value=k; o.textContent=b.nome; selBase.appendChild(o); }
 if(!Object.values(BASES).some(b=>b.nr)) $("datumRow").hidden = true;
 if(MODE!=="web") $("windRow").hidden = true;
 selBase.value=opt.base; $("optDatum").value=opt.datum;
