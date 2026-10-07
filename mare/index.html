@@ -170,6 +170,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sea)}
         <div class="chartbox"><svg id="chart" viewBox="0 0 360 220" role="img" aria-label="Gráfico da maré de hoje"></svg></div>
         <div class="legend" id="legend"></div>
       </div>
+      <div class="card" id="liveCard" hidden><h2>Medido agora nos marégrafos vizinhos</h2><div id="live"></div></div>
       <div class="card"><h2>Hoje</h2><div id="today"></div></div>
       <div class="card"><h2>Amanhã</h2><div id="tomorrow"></div></div>
       <div class="card">
@@ -341,14 +342,22 @@ const BASES = {
   media:  Object.assign({nome:"Modelo — média Paranaguá + S. Francisco", curto:"média P+SFS", serie:"avg", nr:false}, BUILTIN.media),
 };
 const DEFAULT_BASE = "maregrafo";
-BASES.maregrafo = Object.assign({nome:"Marégrafo da barra de Guaratuba (SiMCosta, 2018)", curto:"marégrafo Guaratuba 2018", serie:"g", nr:false, fonte:"Constantes harmônicas ajustadas por mim ao registro do marégrafo de radar SiMCosta/CEM-UFPR na barra de Guaratuba (estação 313, 25,857°S 48,567°W, a 1,5 km do ponto de referência): 55 dias, 30/06 a 24/08/2018, leituras a cada 15 min. K2, P1, T2 e NU2 inferidas das estações oficiais vizinhas (Galheta e S. Francisco do Sul, Tábua DHN 2026), porque o registro é curto; ciclo anual (Sa, Ssa) da tábua oficial de S. Francisco do Sul. Validação em 20 dias fora do ajuste: erro de horário de preamar/baixa-mar de 15 min (mediana). O sensor está parado desde 2018."}, {"z0":0.0,"rms":0.17223765375991695,"dias":55.2,"c":[["M2",0.3437,164.1],["S2",0.2377,171.4],["M4",0.116,343.8],["O1",0.1123,121.4],["K2",0.0742,165.0],["K1",0.0731,181.3],["M3",0.0718,157.2],["MN4",0.0666,295.5],["N2",0.064,234.8],["SA",0.0505,20.6],["MK3",0.0464,248.4],["MS4",0.0411,91.4],["Q1",0.0374,102.2],["P1",0.0297,175.1],["2N2",0.0256,221.5],["L2",0.0249,123.2],["MU2",0.0221,193.7],["2MK3",0.0166,191.2],["OO1",0.0073,320.0],["T2",0.0065,199.0],["M6",0.0063,351.5],["2MS6",0.0063,25.7],["SSA",0.0053,171.2],["J1",0.005,194.3],["NU2",0.0048,260.5]]});
+BASES.maregrafo = Object.assign({nome:"Marégrafo da barra de Guaratuba (SiMCosta, 2018)", curto:"marégrafo Guaratuba 2018", serie:"g", nr:false, fonte:"Constantes harmônicas ajustadas por mim ao registro do marégrafo de radar SiMCosta/CEM-UFPR na barra de Guaratuba (estação 313, 25,857°S 48,567°W, a 1,5 km do ponto de referência): 55 dias, 30/06 a 24/08/2018, leituras a cada 15 min. K2, P1, T2 e NU2 inferidas das estações oficiais vizinhas (Galheta e S. Francisco do Sul, Tábua DHN 2026), porque o registro é curto; ciclo anual (Sa, Ssa) da tábua oficial de S. Francisco do Sul. Validação em 20 dias fora do ajuste: erro de horário de preamar/baixa-mar de 15 min (mediana). O sensor está parado desde 2018."}, {"z0":0.0,"rms":0.17226327956209272,"dias":55.2,"c":[["M2",0.3432,164.0],["S2",0.2375,171.5],["M4",0.116,343.8],["O1",0.1122,121.6],["K1",0.0736,179.0],["K2",0.0733,165.6],["M3",0.0718,157.2],["MN4",0.0666,295.5],["N2",0.0589,236.7],["SA",0.0499,20.5],["MK3",0.0465,248.4],["MS4",0.0411,91.5],["Q1",0.0375,102.0],["P1",0.0318,179.0],["2N2",0.0257,221.7],["L2",0.0249,122.7],["MU2",0.0227,194.4],["2MK3",0.0166,191.2],["SSA",0.0117,147.2],["NU2",0.0103,241.8],["OO1",0.0076,319.4],["T2",0.0063,200.2],["M6",0.0063,351.4],["2MS6",0.0063,25.8],["J1",0.005,198.1]]});
 
-// Estações oficiais vizinhas: constantes ajustadas por mim às preamares/baixa-mares da Tábua das Marés DHN 2026 (41 componentes + Sa).
+// Estações oficiais vizinhas: constantes ajustadas por mim às preamares/baixa-mares da Tábua das Marés DHN 2026 (34 componentes + Sa).
 // Reproduzem a tábua com erro mediano de 7–12 min e 3–4 cm (testado em outubro/2026, fora do ajuste). Alturas acima do NR de cada estação.
-const OFFICIAL = {"galheta":{"nome":"Barra de Paranaguá – Canal da Galheta","curto":"Galheta","z0_tabua":0.79,"z0":0.776,"c":[["M2",0.3567,176.5],["S2",0.2344,181.9],["O1",0.1031,123.9],["M3",0.0895,181.5],["K2",0.0749,178.5],["M4",0.0744,8.3],["K1",0.0593,199.7],["N2",0.0573,247.5],["SO3",0.0418,287.7],["MU2",0.0365,192.4],["L2",0.0299,162.2],["MN4",0.0297,323.9],["MS4",0.0294,62.9],["Q1",0.0277,108.6],["MK3",0.0255,252.9],["2MK3",0.0236,142.3],["P1",0.0228,190.7],["2N2",0.0196,226.0],["SK3",0.0192,84.6],["MO3",0.0188,156.2],["MSF",0.0185,135.4],["MM",0.0098,180.8],["MK4",0.0091,66.0],["2MN6",0.0091,186.2],["T2",0.0088,219.2],["2SM6",0.0084,147.5],["M6",0.008,310.3],["2SM2",0.008,15.6],["MSN6",0.0074,282.2],["RHO1",0.0073,120.3],["SN4",0.0058,86.8],["2Q1",0.0052,100.0],["MF",0.0047,171.9],["2MS6",0.0044,321.1],["J1",0.0041,332.5],["R2",0.0038,99.9],["SSA",0.0036,129.8],["NU2",0.0033,248.4],["OO1",0.0027,240.9],["S4",0.0023,269.9]]},"sfs":{"nome":"Porto de São Francisco do Sul","curto":"S. Francisco do Sul","z0_tabua":0.89,"z0":0.885,"c":[["M2",0.401,166.3],["S2",0.2716,171.3],["M4",0.1702,18.2],["M3",0.128,176.8],["O1",0.1127,121.4],["K2",0.0827,162.0],["N2",0.0795,240.9],["MN4",0.0734,326.1],["MS4",0.0722,113.7],["K1",0.0607,187.5],["MK3",0.0568,223.5],["SA",0.0505,20.6],["SO3",0.0456,258.9],["MO3",0.0414,159.4],["Q1",0.0302,94.1],["MU2",0.029,192.9],["MK4",0.0277,101.1],["P1",0.0259,184.0],["L2",0.0256,95.5],["2MK3",0.0239,217.6],["SN4",0.0183,34.1],["SK3",0.0181,74.4],["2N2",0.0138,212.4],["LAMBDA2",0.0138,90.2],["MSF",0.0108,132.9],["2SM2",0.0101,342.1],["RHO1",0.01,50.4],["M6",0.0099,2.4],["MM",0.0097,178.9],["S4",0.0082,21.2],["NU2",0.0072,291.4],["R2",0.0072,171.1],["2Q1",0.007,71.8],["2MN6",0.0068,232.3],["MF",0.006,230.9],["SSA",0.0053,171.2],["J1",0.0049,276.6],["2MS6",0.0048,3.9],["T2",0.0047,189.3],["MSN6",0.0031,162.7],["OO1",0.0029,320.5]]}};
+const OFFICIAL = {"galheta":{"nome":"Barra de Paranaguá – Canal da Galheta","curto":"Galheta","z0_tabua":0.79,"z0":0.782,"c":[["M2",0.3607,176.2],["S2",0.2438,181.5],["O1",0.0965,124.4],["M3",0.0839,176.8],["K2",0.0778,178.1],["M4",0.0758,9.0],["N2",0.0617,247.6],["K1",0.0539,181.9],["2MK3",0.0443,142.2],["MN4",0.0328,321.8],["MK3",0.0321,268.2],["L2",0.031,153.3],["MU2",0.0305,200.7],["MS4",0.0288,76.2],["Q1",0.0272,112.9],["P1",0.0259,184.5],["2N2",0.0204,230.3],["RHO1",0.0142,138.1],["2MS6",0.0137,346.8],["NU2",0.0114,236.3],["MSF",0.0108,142.2],["LAMBDA2",0.0098,127.6],["2SM2",0.0097,17.7],["T2",0.0084,218.9],["2Q1",0.0084,100.0],["SSA",0.0076,76.6],["MF",0.0066,143.7],["S1",0.006,127.2],["M6",0.0056,311.7],["MM",0.0053,157.5],["S4",0.0029,356.5],["R2",0.0023,71.2]]},"sfs":{"nome":"Porto de São Francisco do Sul","curto":"S. Francisco do Sul","z0_tabua":0.89,"z0":0.883,"c":[["M2",0.4015,165.9],["S2",0.2772,171.7],["M4",0.1774,18.7],["M3",0.118,175.0],["O1",0.1136,121.9],["K2",0.0825,163.3],["N2",0.079,241.4],["MS4",0.0768,115.6],["MN4",0.0751,324.6],["K1",0.0621,179.0],["SA",0.0499,20.5],["2MK3",0.049,182.3],["MK3",0.0489,238.0],["L2",0.0307,91.1],["MU2",0.0296,200.6],["Q1",0.0266,102.6],["P1",0.0238,176.4],["LAMBDA2",0.0227,79.1],["2N2",0.021,232.3],["S1",0.0181,171.9],["NU2",0.013,262.7],["SSA",0.0117,147.2],["S4",0.0111,22.7],["2SM2",0.0103,342.8],["2MS6",0.0091,334.1],["2Q1",0.0088,86.6],["MM",0.0085,211.8],["M6",0.0083,27.6],["RHO1",0.0081,80.0],["J1",0.0079,281.2],["MSF",0.0074,158.0],["R2",0.0072,191.1],["MF",0.0066,184.5],["T2",0.0051,191.7]]}};
+
+// Modelo global de maré no nó oceânico a 4 km da barra (25,875°S 48,500°W): EOT20 (principais) + GOT5.6 (P1, MS4, M3, MU2). Sem o atraso da barra (~10 min). Só para comparação.
+BASES.global = Object.assign({nome:"Modelo global EOT20 + GOT5.6 (nó a 4 km da barra)", curto:"modelo global (EOT20)", serie:"g", nr:false, fonte:"Constantes dos atlas globais EOT20 (DGFI-TUM, CC BY 4.0) e GOT5.6 (NASA GSFC) no nó oceânico mais próximo, 4 km a leste da barra. Não incluem o atraso e a deformação da maré dentro da barra; comparadas ao marégrafo de 2018, a preamar fica ~10 min mais cedo."}, {"z0":0.0,"c":[["M2",0.3476,159.2],["S2",0.249,162.6],["M4",0.1378,326.1],["O1",0.1159,121.1],["MS4",0.0979,59.1],["K2",0.0836,146.1],["N2",0.0618,223.8],["K1",0.0605,176.3],["M3",0.0517,309.1],["SA",0.0303,152.9],["Q1",0.0277,96.8],["MU2",0.0263,191.6],["2N2",0.0256,211.5],["S1",0.0215,141.4],["P1",0.021,150.5],["MF",0.0116,285.6],["T2",0.0097,188.0],["J1",0.0072,96.4],["MM",0.0025,246.4],["SSA",0.0025,340.6]]});
+// Marégrafo SiMCosta Pontal do Sul (398): constantes ajustadas a 1.010 dias (2024–2026), zero arbitrário da estação; usadas só para calcular o resíduo observado (nível medido − maré astronômica).
+const LIVE = {simcosta:{id:398, nome:"Pontal do Sul", km:41, dir:"N", z0:11.4714, c:[["M2",0.4217,168.9],["S2",0.2848,176.0],["O1",0.1155,119.8],["M3",0.0954,174.6],["K2",0.0909,165.3],["M4",0.0893,16.7],["N2",0.0659,234.6],["K1",0.0646,182.8],["SA",0.0517,54.8],["MN4",0.0431,327.9],["MK3",0.0429,239.1],["MS4",0.0353,103.2],["2MK3",0.0315,139.3],["L2",0.03,126.5],["SSA",0.0298,190.3],["Q1",0.029,102.1],["MU2",0.0274,205.7],["MM",0.0265,56.7],["P1",0.0248,181.5],["2N2",0.0228,227.6],["S1",0.0176,167.0],["MF",0.0166,344.0],["2SM2",0.0125,357.6],["T2",0.0087,184.5],["2MS6",0.0086,319.5],["RHO1",0.0078,99.2],["NU2",0.0071,256.9],["M6",0.0064,284.2],["R2",0.0049,188.3],["S4",0.0043,116.3],["2Q1",0.0036,65.6],["MSF",0.0036,152.9]]},
+  ciram:[{id:2901, nome:"Ilha da Paz", km:35, dir:"S", url:"https://ciram.epagri.sc.gov.br/graficos/getDataMare8_2901.php"},{id:2903, nome:"Itapoá", km:35, dir:"S", url:"https://ciram.epagri.sc.gov.br/graficos/getDataMare1_2903.php"}]};
 
 for(const b of Object.values(BASES)){ b.cons = b.c.map(c=>({n:c[0],H:c[1],g:c[2]})); b.ev = TP.compile(b.cons); }
 for(const o of Object.values(OFFICIAL)){ o.ev = TP.compile(o.c.map(c=>({n:c[0],H:c[1],g:c[2]}))); }
+if(typeof LIVE!=="undefined") LIVE.simcosta.ev = TP.compile(LIVE.simcosta.c.map(c=>({n:c[0],H:c[1],g:c[2]})));
+let OBS = null;   // efeito do tempo medido: {t:[], v:[], end, endV, st:[{nome,km,dir,res,age,level}]}
 // extremos da tábua oficial reproduzida, no dia [d,z), alturas acima do NR da estação
 function officialDay(o, d, z){
   const pts=[]; for(let t=d-2*H;t<=z+2*H;t+=2*60e3) pts.push([t, o.ev(t)+o.z0]);
@@ -424,6 +433,48 @@ async function load(){
     $("msg").innerHTML = `<div class="warn">Sem dados novos (${e.message}). ${S? "Usando a previsão salva de "+fmtD(S.at)+" "+fmtT(S.at)+".":"Mostrando só a maré astronômica, que funciona sem internet."}</div>`;
   }finally{ document.body.classList.remove("spin"); }
   build(); render();
+  loadLive().then(()=>{ DI.clear(); render(); }).catch(()=>{});
+}
+// ---- marégrafos ao vivo (SiMCosta Pontal do Sul; Epagri/Ciram Ilha da Paz e Itapoá) ----
+const parseCiramTime = s => { const m=/^(\d{2})\/(\d{2}) (\d{2}):(\d{2})$/.exec(s.trim()); if(!m) return null;
+  const now=new Date(), y0=Number(dayKey(Date.now()).slice(0,4)), mon=+m[2];
+  const y = (mon>Number(dayKey(Date.now()).slice(5,7))+1) ? y0-1 : y0;           // virada de ano
+  const b=Date.UTC(y,mon-1,+m[1],+m[3],+m[4]); return b - tzOffset(b); };
+async function loadLive(){
+  if(MODE!=="web" || typeof LIVE==="undefined") return;
+  const now=Date.now(), st=[], series=[];
+  // SiMCosta Pontal do Sul: nível a cada minuto, zero arbitrário → resíduo = medido − (Z0 + astronômica)
+  try{
+    const t1=Math.floor((now-48*H)/1000), t2=Math.floor(now/1000);
+    const d=await getJSON(`https://simcosta.furg.br/api/intrans_data?boiaID=${LIVE.simcosta.id}&type=json&time1=${t1}&time2=${t2}&params=avg_water_level_arbitrary_zero`, 2);
+    const pts=[]; for(const r of d){ const v=r.avg_water_level_arbitrary_zero; if(v==null) continue; const t=Date.parse(r.timestamp); if(!(t>0)) continue;
+      pts.push([t, v - (LIVE.simcosta.z0 + LIVE.simcosta.ev(t))]); }
+    pts.sort((a,b)=>a[0]-b[0]);
+    if(pts.length>30){ const last=pts[pts.length-1], rec=pts.filter(p=>p[0]>last[0]-60*60e3).map(p=>p[1]).sort((a,b)=>a-b);
+      st.push({nome:LIVE.simcosta.nome, km:LIVE.simcosta.km, dir:LIVE.simcosta.dir, res:rec[Math.floor(rec.length/2)], age:now-last[0], level:d[d.length-1].avg_water_level_arbitrary_zero});
+      series.push({km:LIVE.simcosta.km, pts}); }
+  }catch(e){}
+  // Epagri/Ciram: observado, astronômica e resíduo (cm) a cada 15 min, horário de Brasília
+  for(const c of LIVE.ciram){
+    try{
+      const d=await getJSON(c.url, 2); const rows=d.rows||[]; const pts=[];
+      for(const r of rows){ const v=r.c; if(!v||!v[0]||v[1]==null||String(v[1].v).trim()==="null"||String(v[2].v).trim()==="null") continue;
+        const t=parseCiramTime(String(v[0].v)); if(t==null) continue; pts.push([t, (parseFloat(v[1].v)-parseFloat(v[2].v))/100]); }
+      pts.sort((a,b)=>a[0]-b[0]);
+      if(pts.length>8){ const last=pts[pts.length-1], rec=pts.filter(p=>p[0]>last[0]-60*60e3).map(p=>p[1]).sort((a,b)=>a-b);
+        st.push({nome:c.nome, km:c.km, dir:c.dir, res:rec[Math.floor(rec.length/2)], age:now-last[0]});
+        series.push({km:c.km, pts}); }
+    }catch(e){}
+  }
+  if(!series.length){ OBS=null; return; }
+  // série combinada (média ponderada por 1/distância) em bins de 10 min, últimas 48 h
+  const t=[], v=[]; const t0=Math.floor((now-48*H)/600e3)*600e3;
+  for(let b=t0; b<=now; b+=600e3){ let s=0,w=0;
+    for(const sr of series){ const sel=sr.pts.filter(p=>p[0]>=b-300e3&&p[0]<b+300e3); if(!sel.length) continue;
+      const m=sel.reduce((a,p)=>a+p[1],0)/sel.length; s+=m/sr.km; w+=1/sr.km; }
+    if(w>0){ t.push(b); v.push(s/w); } }
+  if(!t.length){ OBS=null; return; }
+  OBS={t, v, end:t[t.length-1], endV:v[v.length-1], st, at:now};
 }
 
 function modelSeries(){
@@ -464,7 +515,14 @@ function astAt(x){
   return amp*b.ev(x-lag) + datumOff();
 }
 const windAt = x => (opt.wind && MET && MET.wadj.length) ? (lin(MET.t,MET.wadj,x)||0) : 0;
-const levelAt = x => astAt(x) + metAt(x) + windAt(x);
+// efeito do tempo: medido nos marégrafos vizinhos (últimas 48 h) e, para a frente, decaindo em 12 h para a previsão do modelo
+function weatherAt(x){
+  if(!OBS || !OBS.t.length) return metAt(x);
+  if(x<=OBS.end){ const v=lin(OBS.t,OBS.v,x); return v==null? metAt(x) : v; }
+  const k=Math.max(0, 1-(x-OBS.end)/(12*H));
+  return k*OBS.endV + (1-k)*metAt(x);
+}
+const levelAt = x => astAt(x) + weatherAt(x) + windAt(x);
 const rawAt = (k,x) => { if(!S) return null; const s=S[k]; const v=lin(s.t,s.h,x); if(v==null) return null;
   const z = k==="p"?Z0P : k==="s"?Z0S : BASES.celula.z0;
   return v - z + datumOff(); };
@@ -488,7 +546,7 @@ function extremes(pts){
 // resumo de um dia (cache)
 const DI = new Map(); let diSig = "";
 function dayInfo(d){
-  const sg=[opt.base,opt.lag,opt.amp,opt.off,opt.datum,opt.wind,S?S.at:0].join("|");
+  const sg=[opt.base,opt.lag,opt.amp,opt.off,opt.datum,opt.wind,S?S.at:0,OBS?OBS.at:0].join("|");
   if(sg!==diSig){ DI.clear(); diSig=sg; }
   if(DI.has(d)) return DI.get(d);
   const z=nextDay(d), pts=sample(levelAt, d-3*H, z+3*H, 2*60e3);
@@ -566,9 +624,9 @@ function renderNow(now){
     html += `${nx.type==="high"?"Sobe":"Baixa"} por mais <b>${dur((nx.t-now)/60e3)}</b>: ${nx.type==="high"?"para de subir":"para de baixar"} às <b>${fmtT(nx.t)}</b>, ${nx.type==="high"?"preamar":"baixa-mar"} de <b>${fmtH(nx.h)} m</b>.`;
     if(nx2) html += `<br>Depois ${nx2.type==="high"?"sobe até":"baixa até"} <b>${fmtH(nx2.h)} m</b> às <b>${fmtT(nx2.t)}</b> (em ${dur((nx2.t-now)/60e3)}).`;
   }
-  const met = metAt(now);
+  const met = weatherAt(now);
   html += MODE==="web"
-    ? `<div class="sub">Maré astronômica ${fmtH(astAt(now))} m ${met>=0?"+":"−"} efeito do tempo ${Math.abs(met*100).toFixed(0)} cm${opt.wind?` + vento ${cm(windAt(now))}`:""} · base: ${b.curto}</div>`
+    ? `<div class="sub">Maré astronômica ${fmtH(astAt(now))} m ${met>=0?"+":"−"} efeito do tempo ${Math.abs(met*100).toFixed(0)} cm${OBS?" (medido)":" (modelo)"}${opt.wind?` + vento ${cm(windAt(now))}`:""} · base: ${b.curto}</div>`
     : `<div class="sub">Maré astronômica (sem o efeito do tempo nesta versão) · base: ${b.curto}</div>`;
   $("next").innerHTML = html;
 
@@ -580,6 +638,7 @@ function renderNow(now){
       + I.ex.map(e=>`<div class="row"><span>${e.type==="high"?"▲ Preamar":"▼ Baixa-mar"}${e.t<now?' <span style="color:var(--muted);font-weight:400">(passou)</span>':""}</span><span>${fmtT(e.t)} · ${fmtH(e.h)} m</span></div>`).join("");
   };
   day(d0,"today"); day(nextDay(d0),"tomorrow");
+  liveCard(now);
   chartShort(now, pts, ex);
 
   // próximos 7 dias (toque abre no calendário)
@@ -646,6 +705,17 @@ function renderDay(d, now, monthAmps){
   drawDay($("dChart"), I, now);
 }
 
+function liveCard(now){
+  const el=$("liveCard"); if(!el) return;
+  if(MODE!=="web"){ el.hidden=true; return; }
+  el.hidden=false;
+  if(!OBS){ $("live").innerHTML = `<div class="row"><span>Sem leitura recente dos marégrafos vizinhos. Usando o efeito do tempo do modelo: ${cm(metAt(now))}.</span></div>`; return; }
+  const ageTxt = ms => ms<90e3? "agora" : "há "+dur(ms/60e3);
+  $("live").innerHTML = OBS.st.map(s=>`<div class="row"><span>${s.nome} <span class="k2">(${s.km} km ${s.dir})</span></span><span class="${s.res>=0?"up":"down"}">${cm(s.res)} <span class="k2">${ageTxt(s.age)}</span></span></div>`).join("")
+    + `<div class="row"><span>Efeito do tempo usado agora</span><span>${cm(OBS.endV)}</span></div>`
+    + `<div class="row"><span>Modelo previa para agora</span><span>${cm(metAt(now))}</span></div>`
+    + `<div class="note"><p>Nível medido menos maré astronômica em cada estação (média ponderada pela distância). O valor medido substitui o do modelo nas últimas 48 h e vai dando lugar à previsão do modelo ao longo das próximas 12 h. Dados: SiMCosta/CEM-UFPR (Pontal do Sul) e Epagri/Ciram (Ilha da Paz, Itapoá).</p></div>`;
+}
 function card8(d){ return ["N","NE","E","SE","S","SW","W","NW"][Math.round(((d%360)+360)%360/45)%8]; }
 function renderMore(now){
   $("windCard").hidden = MODE!=="web";
@@ -671,7 +741,7 @@ function renderMore(now){
     (opt.datum==="nr" ? `<div class="note"><p>NR (nível de redução) da ficha oficial da Marinha, estação 60100 Guaratuba – Iate Clube (ficha F-41; observações de 17/11 a 15/12/1995): nível médio 0,755 m acima do NR. Esse nível médio foi medido dentro da baía, no Iate Clube; o app usa o nível médio da barra como equivalente (diferença não medida, provavelmente de poucos cm).</p></div>` : "")+
     (b.fonte? `<div class="note"><p>${b.fonte}</p></div>`:"")+
     (MODE==="web"
-      ? `<div class="row"><span>Efeito do tempo</span><span>Open-Meteo até ${fcEnd}</span></div><div class="row"><span>Efeito do tempo agora</span><span>${cm(metAt(now))}</span></div>`
+      ? `<div class="row"><span>Efeito do tempo (previsão)</span><span>Open-Meteo até ${fcEnd}</span></div><div class="row"><span>Efeito do tempo medido</span><span>${OBS? OBS.st.map(s=>s.nome).join(", ")+" · "+cm(OBS.endV) : "sem leitura"}</span></div><div class="note"><p>Marégrafos: SiMCosta (dados cortesia do Sistema de Monitoramento da Costa Brasileira, FURG/CEM-UFPR) e Epagri/Ciram. Não servem para navegação.</p></div>`
       : `<div class="note"><p>Esta versão roda dentro do Claude, que não deixa a página buscar dados de outros sites. Por isso ela mostra só a maré astronômica, calculada no próprio aparelho. Nenhum horário depende de internet.</p></div>`);
   $("infoCard").innerHTML = INFO;
 }
@@ -786,6 +856,7 @@ window.addEventListener("pageshow", refresh);
 setInterval(()=>{ if(!document.hidden && tab==="agora") render(); }, 60e3);
 if(MODE==="web"){
   setInterval(()=>{ if(!document.hidden) load(); }, 15*60e3);
+  setInterval(()=>{ if(!document.hidden) loadLive().then(()=>{ DI.clear(); render(); }).catch(()=>{}); }, 10*60e3);
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
   S = store.get("mare-cache", null);
 }
