@@ -433,7 +433,7 @@ async function load(){
     $("msg").innerHTML = `<div class="warn">Sem dados novos (${e.message}). ${S? "Usando a previsão salva de "+fmtD(S.at)+" "+fmtT(S.at)+".":"Mostrando só a maré astronômica, que funciona sem internet."}</div>`;
   }finally{ document.body.classList.remove("spin"); }
   build(); render();
-  loadLive().then(()=>{ DI.clear(); render(); }).catch(()=>{});
+  loadLive().then(()=>{ DI.clear(); render(); if(!OBS) setTimeout(()=>loadLive().then(()=>{ DI.clear(); render(); }).catch(()=>{}), 60e3); }).catch(()=>{});
 }
 // ---- marégrafos ao vivo (SiMCosta Pontal do Sul; Epagri/Ciram Ilha da Paz e Itapoá) ----
 const parseCiramTime = s => { const m=/^(\d{2})\/(\d{2}) (\d{2}):(\d{2})$/.exec(s.trim()); if(!m) return null;
@@ -446,7 +446,7 @@ async function loadLive(){
   // SiMCosta Pontal do Sul: nível a cada minuto, zero arbitrário → resíduo = medido − (Z0 + astronômica)
   try{
     const t1=Math.floor((now-48*H)/1000), t2=Math.floor(now/1000);
-    const d=await getJSON(`https://simcosta.furg.br/api/intrans_data?boiaID=${LIVE.simcosta.id}&type=json&time1=${t1}&time2=${t2}&params=avg_water_level_arbitrary_zero`, 2);
+    const d=await getJSON(`https://simcosta.furg.br/api/intrans_data?boiaID=${LIVE.simcosta.id}&type=json&time1=${t1}&time2=${t2}&params=avg_water_level_arbitrary_zero`, 3);
     const pts=[]; for(const r of d){ const v=r.avg_water_level_arbitrary_zero; if(v==null) continue; const t=Date.parse(r.timestamp); if(!(t>0)) continue;
       pts.push([t, v - (LIVE.simcosta.z0 + LIVE.simcosta.ev(t))]); }
     pts.sort((a,b)=>a[0]-b[0]);
@@ -457,7 +457,7 @@ async function loadLive(){
   // Epagri/Ciram: observado, astronômica e resíduo (cm) a cada 15 min, horário de Brasília
   for(const c of LIVE.ciram){
     try{
-      const d=await getJSON(c.url, 2); const rows=d.rows||[]; const pts=[];
+      const d=await getJSON(c.url, 3); const rows=d.rows||[]; const pts=[];
       for(const r of rows){ const v=r.c; if(!v||!v[0]||v[1]==null||String(v[1].v).trim()==="null"||String(v[2].v).trim()==="null") continue;
         const t=parseCiramTime(String(v[0].v)); if(t==null) continue; pts.push([t, (parseFloat(v[1].v)-parseFloat(v[2].v))/100]); }
       pts.sort((a,b)=>a[0]-b[0]);
