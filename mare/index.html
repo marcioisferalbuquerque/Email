@@ -205,6 +205,9 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sea)}
         </div>
         <div class="chartbox" style="margin-top:10px"><svg id="dChart" viewBox="0 0 360 210" role="img" aria-label="Maré do dia escolhido"></svg></div>
         <div id="dList"></div>
+        <h2 style="margin-top:14px">Tábua oficial vizinha (Marinha)</h2>
+        <div id="dRef"></div>
+        <div class="sub">Preamares e baixa-mares da Tábua das Marés DHN 2026 das estações oficiais mais próximas (43 km ao norte e 42 km ao sul), reproduzidas por constantes ajustadas à tábua (erro típico 10 min e 4 cm). Alturas acima do NR de cada estação. Servem para conferir: Guaratuba costuma ficar entre as duas.</div>
         <h2 style="margin-top:14px">Hora a hora</h2>
         <div class="hours" id="dHours"></div>
         <div class="sub" id="dNote"></div>
@@ -217,7 +220,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sea)}
       <div class="card">
         <h2>Ajustes</h2>
         <label class="set" for="optBase">Base da maré<select id="optBase"></select></label>
-        <label class="set" id="datumRow" for="optDatum">Zero das alturas<select id="optDatum"><option value="nr">zero da tábua (NR aprox.)</option><option value="mean">nível médio do mar</option></select></label>
+        <label class="set" id="datumRow" for="optDatum">Zero das alturas<select id="optDatum"><option value="nr">zero da tábua (NR oficial de Guaratuba)</option><option value="mean">nível médio do mar</option></select></label>
         <label class="set" id="windRow" for="optWind">Somar ajuste de vento (estimativa)<input type="checkbox" id="optWind"></label>
         <label class="set" for="optLag">Atraso local (min)<input type="number" step="5" id="optLag" value="0"></label>
         <label class="set" for="optAmp">Fator de amplitude<input type="number" step="0.05" id="optAmp" value="1"></label>
@@ -252,9 +255,9 @@ const METEO  = "https://api.open-meteo.com/v1/forecast";
 const H = 3.6e6, DAY = 864e5;
 const WIND_AXIS = 200, WIND_K = 0.0015;   // heurística de vento — NÃO calibrada
 const WP = 0.426;                         // peso de Paranaguá na média (inverso da distância: 50 km × 37 km)
-// Zero da tábua (NR) aproximado: nível médio − NR = 0,79 m na barra de Paranaguá (Galheta), tábua DHN 2026.
-// O NR oficial de Guaratuba não é publicado; o de São Francisco do Sul é 0,89 m (incerteza ~10 cm).
-const NR_OFFSET = 0.79;
+// Zero da tábua (NR): ficha oficial F-41 da Marinha, estação 60100 Guaratuba – Iate Clube (obs. 17/11–15/12/1995):
+// nível médio 0,755 m acima do NR. Vizinhas: Galheta 0,79 m, S. Francisco do Sul 0,89 m.
+const NR_OFFSET = 0.755;
 
 // Previsão harmônica padrão: h(t) = Z0 + Σ f·H·cos(V + u − g), g = fase de Greenwich (graus), t em UTC.
 // V a partir das longitudes médias (Meeus); f,u pelas fórmulas clássicas de Doodson/Schureman.
@@ -338,9 +341,19 @@ const BASES = {
   media:  Object.assign({nome:"Modelo — média Paranaguá + S. Francisco", curto:"média P+SFS", serie:"avg", nr:false}, BUILTIN.media),
 };
 const DEFAULT_BASE = "maregrafo";
-BASES.maregrafo = Object.assign({nome:"Marégrafo da barra de Guaratuba (SiMCosta, 2018)", curto:"marégrafo Guaratuba 2018", serie:"g", nr:false, fonte:"Constantes harmônicas ajustadas por mim ao registro do marégrafo de radar SiMCosta/CEM-UFPR na barra de Guaratuba (estação 313, 25,857°S 48,567°W, a 1,5 km do ponto de referência): 55 dias, 30/06 a 24/08/2018, leituras a cada 15 min. K2, P1, T2 e NU2 inferidas de S2, K1 e N2 (registro curto); variação anual (SA, SSA) tomada do modelo. Validação em 20 dias fora do ajuste: erro de horário de preamar/baixa-mar de 15 min (mediana). O sensor está parado desde 2018."}, {"z0":0.0,"rms":0.17244084315672262,"dias":55.2,"c":[["M2",0.3424,163.9],["S2",0.238,170.6],["M4",0.116,343.8],["O1",0.1125,120.9],["K1",0.0777,189.5],["K2",0.0744,155.1],["M3",0.0718,157.2],["MN4",0.0666,295.4],["N2",0.0612,236.1],["SA",0.0473,42.8],["MK3",0.0464,248.4],["MS4",0.0411,91.3],["Q1",0.0374,103.3],["SSA",0.032,186.6],["2N2",0.0251,223.0],["L2",0.0245,118.8],["MU2",0.023,193.8],["P1",0.0187,165.9],["2MK3",0.0167,191.3],["T2",0.0154,166.5],["NU2",0.0082,239.9],["OO1",0.0064,327.0],["M6",0.0063,351.3],["2MS6",0.0063,25.9],["J1",0.0045,181.3]]});
+BASES.maregrafo = Object.assign({nome:"Marégrafo da barra de Guaratuba (SiMCosta, 2018)", curto:"marégrafo Guaratuba 2018", serie:"g", nr:false, fonte:"Constantes harmônicas ajustadas por mim ao registro do marégrafo de radar SiMCosta/CEM-UFPR na barra de Guaratuba (estação 313, 25,857°S 48,567°W, a 1,5 km do ponto de referência): 55 dias, 30/06 a 24/08/2018, leituras a cada 15 min. K2, P1, T2 e NU2 inferidas das estações oficiais vizinhas (Galheta e S. Francisco do Sul, Tábua DHN 2026), porque o registro é curto; ciclo anual (Sa, Ssa) da tábua oficial de S. Francisco do Sul. Validação em 20 dias fora do ajuste: erro de horário de preamar/baixa-mar de 15 min (mediana). O sensor está parado desde 2018."}, {"z0":0.0,"rms":0.17223765375991695,"dias":55.2,"c":[["M2",0.3437,164.1],["S2",0.2377,171.4],["M4",0.116,343.8],["O1",0.1123,121.4],["K2",0.0742,165.0],["K1",0.0731,181.3],["M3",0.0718,157.2],["MN4",0.0666,295.5],["N2",0.064,234.8],["SA",0.0505,20.6],["MK3",0.0464,248.4],["MS4",0.0411,91.4],["Q1",0.0374,102.2],["P1",0.0297,175.1],["2N2",0.0256,221.5],["L2",0.0249,123.2],["MU2",0.0221,193.7],["2MK3",0.0166,191.2],["OO1",0.0073,320.0],["T2",0.0065,199.0],["M6",0.0063,351.5],["2MS6",0.0063,25.7],["SSA",0.0053,171.2],["J1",0.005,194.3],["NU2",0.0048,260.5]]});
+
+// Estações oficiais vizinhas: constantes ajustadas por mim às preamares/baixa-mares da Tábua das Marés DHN 2026 (41 componentes + Sa).
+// Reproduzem a tábua com erro mediano de 7–12 min e 3–4 cm (testado em outubro/2026, fora do ajuste). Alturas acima do NR de cada estação.
+const OFFICIAL = {"galheta":{"nome":"Barra de Paranaguá – Canal da Galheta","curto":"Galheta","z0_tabua":0.79,"z0":0.776,"c":[["M2",0.3567,176.5],["S2",0.2344,181.9],["O1",0.1031,123.9],["M3",0.0895,181.5],["K2",0.0749,178.5],["M4",0.0744,8.3],["K1",0.0593,199.7],["N2",0.0573,247.5],["SO3",0.0418,287.7],["MU2",0.0365,192.4],["L2",0.0299,162.2],["MN4",0.0297,323.9],["MS4",0.0294,62.9],["Q1",0.0277,108.6],["MK3",0.0255,252.9],["2MK3",0.0236,142.3],["P1",0.0228,190.7],["2N2",0.0196,226.0],["SK3",0.0192,84.6],["MO3",0.0188,156.2],["MSF",0.0185,135.4],["MM",0.0098,180.8],["MK4",0.0091,66.0],["2MN6",0.0091,186.2],["T2",0.0088,219.2],["2SM6",0.0084,147.5],["M6",0.008,310.3],["2SM2",0.008,15.6],["MSN6",0.0074,282.2],["RHO1",0.0073,120.3],["SN4",0.0058,86.8],["2Q1",0.0052,100.0],["MF",0.0047,171.9],["2MS6",0.0044,321.1],["J1",0.0041,332.5],["R2",0.0038,99.9],["SSA",0.0036,129.8],["NU2",0.0033,248.4],["OO1",0.0027,240.9],["S4",0.0023,269.9]]},"sfs":{"nome":"Porto de São Francisco do Sul","curto":"S. Francisco do Sul","z0_tabua":0.89,"z0":0.885,"c":[["M2",0.401,166.3],["S2",0.2716,171.3],["M4",0.1702,18.2],["M3",0.128,176.8],["O1",0.1127,121.4],["K2",0.0827,162.0],["N2",0.0795,240.9],["MN4",0.0734,326.1],["MS4",0.0722,113.7],["K1",0.0607,187.5],["MK3",0.0568,223.5],["SA",0.0505,20.6],["SO3",0.0456,258.9],["MO3",0.0414,159.4],["Q1",0.0302,94.1],["MU2",0.029,192.9],["MK4",0.0277,101.1],["P1",0.0259,184.0],["L2",0.0256,95.5],["2MK3",0.0239,217.6],["SN4",0.0183,34.1],["SK3",0.0181,74.4],["2N2",0.0138,212.4],["LAMBDA2",0.0138,90.2],["MSF",0.0108,132.9],["2SM2",0.0101,342.1],["RHO1",0.01,50.4],["M6",0.0099,2.4],["MM",0.0097,178.9],["S4",0.0082,21.2],["NU2",0.0072,291.4],["R2",0.0072,171.1],["2Q1",0.007,71.8],["2MN6",0.0068,232.3],["MF",0.006,230.9],["SSA",0.0053,171.2],["J1",0.0049,276.6],["2MS6",0.0048,3.9],["T2",0.0047,189.3],["MSN6",0.0031,162.7],["OO1",0.0029,320.5]]}};
 
 for(const b of Object.values(BASES)){ b.cons = b.c.map(c=>({n:c[0],H:c[1],g:c[2]})); b.ev = TP.compile(b.cons); }
+for(const o of Object.values(OFFICIAL)){ o.ev = TP.compile(o.c.map(c=>({n:c[0],H:c[1],g:c[2]}))); }
+// extremos da tábua oficial reproduzida, no dia [d,z), alturas acima do NR da estação
+function officialDay(o, d, z){
+  const pts=[]; for(let t=d-2*H;t<=z+2*H;t+=2*60e3) pts.push([t, o.ev(t)+o.z0]);
+  return extremes(pts).filter(e=>e.t>=d&&e.t<z);
+}
 
 // ================= utilidades =================
 const $ = id => document.getElementById(id);
@@ -525,7 +538,7 @@ function moonIcon(x,y,ic,r=5,ln){ // visto do hemisfério Sul: crescente ilumina
 }
 
 // ================= telas =================
-function refLabel(){ return opt.datum==="nr" ? "zero da tábua (NR aprox.)" : "ref.: nível médio"; }
+function refLabel(){ return opt.datum==="nr" ? "zero da tábua (NR Guaratuba)" : "ref.: nível médio"; }
 function render(){
   const now=Date.now();
   $("upd").textContent = MODE!=="web" ? "maré astronômica · calculada no aparelho" : (S ? "previsão de " + fmtT(S.at) : "sem previsão online");
@@ -602,7 +615,7 @@ function renderCal(now){
   $("cal").innerHTML = h;
   $("scaleLo").innerHTML = `sobe pouco<br>≤ ${s2(CAL_LO+datumOff())} m`; $("scaleHi").innerHTML = `sobe muito<br>≥ ${s2(CAL_HI+datumOff())} m`;
   $("calNote").textContent = opt.datum==="nr"
-    ? "Cor e número = altura máxima da maré no dia, em metros acima do zero da tábua (NR aproximado). Laranja: maré fraca; azul escuro: maré alta. Círculo no canto: fase da Lua. Hoje sublinhado."
+    ? "Cor e número = altura máxima da maré no dia, em metros acima do zero da tábua (NR oficial de Guaratuba). Laranja: maré fraca; azul escuro: maré alta. Círculo no canto: fase da Lua. Hoje sublinhado."
     : "Cor e número = altura máxima da maré no dia, em metros acima do nível médio do mar. Laranja: maré fraca; azul escuro: maré alta. Círculo no canto: fase da Lua. Hoje sublinhado.";
   $("jump").value = dayKey(sel+12*H);
   renderDay(sel, now, amps);
@@ -626,6 +639,8 @@ function renderDay(d, now, monthAmps){
   $("dList").innerHTML = I.ex.map(e=>`<div class="row"><span>${e.type==="high"?"▲ Preamar":"▼ Baixa-mar"}</span><span class="${e.type==="high"?"up":"down"}">${fmtT(e.t)} · ${fmtH(e.h)} m</span></div>`).join("") || `<div class="row"><span>sem extremos neste dia</span></div>`;
   let hh=""; for(let t=d; t<z; t+=H) hh += `<div><span>${String(hourOf(t)).padStart(2,"0")}h</span><span>${s2(levelAt(t))}</span></div>`;
   $("dHours").innerHTML = hh;
+  $("dRef").innerHTML = Object.values(OFFICIAL).map(o=>{ const ex=officialDay(o,d,z);
+    return `<div class="row"><span>${o.curto}</span><span style="font-weight:500">${ex.map(e=>`${e.type==="high"?"▲":"▼"} ${fmtT(e.t)} ${s2(e.h)}`).join(" · ")||"–"}</span></div>`; }).join("");
   $("dNote").textContent = `Alturas em metros, ${refLabel()}. ` + (I.weather ? "Inclui o efeito do tempo previsto pelo modelo." :
     (MODE==="web" ? "Fora do alcance da previsão do tempo (~9 dias): só maré astronômica." : "Maré astronômica; frente fria e vento forte podem mudar a altura em dezenas de centímetros."));
   drawDay($("dChart"), I, now);
@@ -652,8 +667,8 @@ function renderMore(now){
   const fcEnd = MET&&MET.end ? `${fmtD(MET.end)} ${fmtT(MET.end)}` : "—";
   $("srcinfo").innerHTML =
     `<div class="row"><span>Maré astronômica</span><span>${b.curto}</span></div>`+
-    `<div class="row"><span>Zero das alturas</span><span>${opt.datum==="nr" ? "NR aprox. = nível médio − 0,79 m" : "nível médio do mar"}</span></div>`+
-    (opt.datum==="nr" ? `<div class="note"><p>O NR (nível de redução) oficial de Guaratuba não é publicado. Uso o da barra de Paranaguá (Galheta): nível médio 0,79 m acima do NR, da tábua DHN 2026. Em São Francisco do Sul é 0,89 m; a incerteza é dessa ordem, ~10 cm.</p></div>` : "")+
+    `<div class="row"><span>Zero das alturas</span><span>${opt.datum==="nr" ? "NR oficial Guaratuba (nível médio − 0,755 m)" : "nível médio do mar"}</span></div>`+
+    (opt.datum==="nr" ? `<div class="note"><p>NR (nível de redução) da ficha oficial da Marinha, estação 60100 Guaratuba – Iate Clube (ficha F-41; observações de 17/11 a 15/12/1995): nível médio 0,755 m acima do NR. Esse nível médio foi medido dentro da baía, no Iate Clube; o app usa o nível médio da barra como equivalente (diferença não medida, provavelmente de poucos cm).</p></div>` : "")+
     (b.fonte? `<div class="note"><p>${b.fonte}</p></div>`:"")+
     (MODE==="web"
       ? `<div class="row"><span>Efeito do tempo</span><span>Open-Meteo até ${fcEnd}</span></div><div class="row"><span>Efeito do tempo agora</span><span>${cm(metAt(now))}</span></div>`
@@ -734,7 +749,7 @@ function drawDay(svg, I, now){
 }
 
 // ================= controles =================
-const INFO = "<h2>Como é calculado</h2>\n<p><b>1. Maré astronômica.</b> Soma das componentes de maré (M2, S2, O1, K1, M4…) com as correções do ciclo de 18,6 anos da Lua, no método padrão internacional (o mesmo da NOAA e dos modelos globais). Testei o cálculo contra previsões oficiais da NOAA: erro de cerca de 1 cm e horários de preamar e baixa-mar com 0 a 6 minutos de diferença.</p>\n<p><b>2. Constantes.</b> Por padrão, as do <b>marégrafo real da barra de Guaratuba</b> (SiMCosta/CEM-UFPR, 55 dias de 2018, a 1,5 km do ponto de referência). Em \"Mais → Ajustes\" dá para trocar pelas constantes do modelo oceânico Open-Meteo (~8 km), que, comparadas ao marégrafo, adiantam a maré em cerca de 45 a 55 minutos.</p>\n<p><b>3. Efeito do tempo.</b> Diferença entre a previsão do Open-Meteo (que inclui pressão do ar e o efeito do vento que o modelo representa) e a maré astronômica do mesmo modelo, suavizada em 25 horas. Cobre cerca de 9 dias; depois disso, só a astronômica.</p>\n<p><b>4. Vento (opcional, desligado).</b> Estimativa minha: vento sul/sudoeste firme tende a subir o nível; nordeste, a baixar. Não é calibrado.</p>\n<p><b>Alturas.</b> Por padrão, em metros acima do <b>zero da tábua</b> (nível de redução, NR), como na tábua da Marinha, para facilitar a conversa com quem navega. Como o NR oficial de Guaratuba não é publicado, uso o da barra de Paranaguá (Galheta): nível médio 0,79 m acima do NR (tábua DHN 2026); em São Francisco do Sul é 0,89 m. Incerteza dessa ordem, ~10 cm. Em Ajustes dá para voltar ao nível médio.</p>\n<p class=\"warn\">Dentro da baía o horário e a altura podem diferir da barra. Para atravessar a barra, use a tábua oficial da Marinha (DHN/CHM). Sem internet, o app continua mostrando a maré astronômica.</p>\n";
+const INFO = "<h2>Como é calculado</h2>\n<p><b>1. Maré astronômica.</b> Soma das componentes de maré (M2, S2, O1, K1, M4…) com as correções do ciclo de 18,6 anos da Lua, no método padrão internacional (o mesmo da NOAA e dos modelos globais). Testei o cálculo contra previsões oficiais da NOAA: erro de cerca de 1 cm e horários de preamar e baixa-mar com 0 a 6 minutos de diferença.</p>\n<p><b>2. Constantes.</b> Por padrão, as do <b>marégrafo real da barra de Guaratuba</b> (SiMCosta/CEM-UFPR, 55 dias de 2018, a 1,5 km do ponto de referência). Em \"Mais → Ajustes\" dá para trocar pelas constantes do modelo oceânico Open-Meteo (~8 km), que, comparadas ao marégrafo, adiantam a maré em cerca de 45 a 55 minutos.</p>\n<p><b>3. Efeito do tempo.</b> Diferença entre a previsão do Open-Meteo (que inclui pressão do ar e o efeito do vento que o modelo representa) e a maré astronômica do mesmo modelo, suavizada em 25 horas. Cobre cerca de 9 dias; depois disso, só a astronômica.</p>\n<p><b>4. Vento (opcional, desligado).</b> Estimativa minha: vento sul/sudoeste firme tende a subir o nível; nordeste, a baixar. Não é calibrado.</p>\n<p><b>Alturas.</b> Por padrão, em metros acima do <b>zero da tábua</b> (nível de redução, NR), como na tábua da Marinha, para facilitar a conversa com quem navega. O valor vem da ficha oficial da Marinha da estação Guaratuba – Iate Clube (F-41, observações de 1995): nível médio 0,755 m acima do NR. Em Ajustes dá para voltar ao nível médio.</p>\n<p class=\"warn\">Dentro da baía o horário e a altura podem diferir da barra. Para atravessar a barra, use a tábua oficial da Marinha (DHN/CHM). Sem internet, o app continua mostrando a maré astronômica.</p>\n";
 $("reload").onclick = () => { if(MODE==="web") load(); else render(); };
 document.querySelectorAll("#tabs button").forEach(b=>{
   b.classList.toggle("on", b.dataset.r===range);
