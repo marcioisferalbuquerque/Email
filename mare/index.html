@@ -22,6 +22,7 @@ body{padding-top:env(safe-area-inset-top,0px)}
   --bg:#edf2f5; --surface:#ffffff; --surface-2:#f5f8fa; --ink:#0d2231; --muted:#587083; --line:#d6e1e8;
   --sea:#0b76a6; --sea-ink:#ffffff; --sea-soft:rgba(11,118,166,.13);
   --flood:#0b8556; --ebb:#c2531b; --sand:#c58a10; --violet:#7357c0; --slate:#8ba0b2;
+  --cal-lo:#e4833f; --cal-mid:#cfe6f2; --cal-hi:#0a5b88;
   --font-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
   --font-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
   --tabbar-h:58px;
@@ -29,11 +30,13 @@ body{padding-top:env(safe-area-inset-top,0px)}
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#06121c; --surface:#0d2131; --surface-2:#11293c; --ink:#e4edf4; --muted:#8ea6b9; --line:#1c3850;
   --sea:#3db3e8; --sea-ink:#04131d; --sea-soft:rgba(61,179,232,.15);
-  --flood:#35d39a; --ebb:#fb9a5b; --sand:#f5c04a; --violet:#a991f5; --slate:#5f7d95; color-scheme:dark } }
+  --flood:#35d39a; --ebb:#fb9a5b; --sand:#f5c04a; --violet:#a991f5; --slate:#5f7d95;
+  --cal-lo:#c9672c; --cal-mid:#1e4760; --cal-hi:#43b5ea; color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#06121c; --surface:#0d2131; --surface-2:#11293c; --ink:#e4edf4; --muted:#8ea6b9; --line:#1c3850;
   --sea:#3db3e8; --sea-ink:#04131d; --sea-soft:rgba(61,179,232,.15);
-  --flood:#35d39a; --ebb:#fb9a5b; --sand:#f5c04a; --violet:#a991f5; --slate:#5f7d95; color-scheme:dark }
+  --flood:#35d39a; --ebb:#fb9a5b; --sand:#f5c04a; --violet:#a991f5; --slate:#5f7d95;
+  --cal-lo:#c9672c; --cal-mid:#1e4760; --cal-hi:#43b5ea; color-scheme:dark }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
@@ -93,18 +96,18 @@ svg{display:block;width:100%;height:auto}
 .caltools input[type=date]{font:inherit;font-size:14px;padding:6px 8px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);min-width:0}
 .wk{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px;font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.4px}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:4px}
-.cell{position:relative;aspect-ratio:1/1.12;max-width:100%;border:0;border-radius:10px;background:var(--surface-2);padding:5px 0 0;
-  display:flex;flex-direction:column;align-items:center;gap:3px;font-variant-numeric:tabular-nums}
-.cell .dn{font-size:15px;font-weight:600}
-.cell .bar{width:62%;height:5px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:auto;margin-bottom:7px}
-.cell .bar i{display:block;height:100%;width:var(--a,0%);background:var(--sea);border-radius:3px}
-.cell svg{position:absolute;top:4px;right:4px;width:11px;height:11px}
+.cell{position:relative;aspect-ratio:1/1.12;max-width:100%;border:0;border-radius:10px;background:var(--surface-2);color:var(--ink);padding:5px 0 4px;
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-variant-numeric:tabular-nums}
+.cell .dn{font-size:15px;font-weight:600;line-height:1;padding:3px 0}
+.cell .mx{font-size:11px;font-weight:600;opacity:.9;letter-spacing:.2px}
+.cell svg{position:absolute;top:3px;right:3px;width:11px;height:11px}
 .cell.blank{background:transparent;pointer-events:none}
-.cell.today{box-shadow:inset 0 0 0 2px var(--sea)}
-.cell.sel{background:var(--sea);color:var(--sea-ink)}
-.cell.sel .bar{background:rgba(255,255,255,.35)} .cell.sel .bar i{background:var(--sea-ink)}
-.cell.past{opacity:.55}
-.callegend{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}
+.cell.today .dn{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.cell.sel{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
+.cell.past{opacity:.5}
+.callegend{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5}
+.scale{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.scale .bar{flex:1;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--cal-lo),var(--cal-mid) 50%,var(--cal-hi))}
 .dtitle{font-family:var(--font-display);font-weight:700;font-size:24px;margin:0;text-wrap:balance}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
 .chip{font-size:12px;border-radius:999px;padding:4px 10px;background:var(--surface-2);color:var(--muted)}
@@ -190,7 +193,8 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sea)}
         </div>
         <div class="wk"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
         <div class="cal" id="cal"></div>
-        <div class="callegend">Barra azul = tamanho da maré no dia (amplitude). Círculo no canto = fase da Lua.</div>
+        <div class="scale"><span>sobe pouco<br>≤ 0,30 m</span><span class="bar"></span><span style="text-align:right">sobe muito<br>≥ 0,85 m</span></div>
+        <div class="callegend">Cor e número = altura máxima que a maré alcança no dia (metros acima do nível médio). Laranja: dia de maré fraca; azul escuro: maré alta. Círculo no canto: fase da Lua. Dia de hoje sublinhado.</div>
       </div>
       <div class="card" id="dayCard">
         <h3 class="dtitle" id="dTitle">–</h3>
@@ -494,8 +498,20 @@ function moonPhases(t0,t1){
       if(t>=t0&&t<t1) out.push({t,ic,nm}); });
   return out.sort((a,b)=>a.t-b.t);
 }
-function moonIcon(x,y,ic,r=5){ // visto do hemisfério Sul: crescente iluminada à esquerda
-  const lit=css("--sand"), ln=css("--muted");
+// escala de cor do calendário pela máxima do dia (m acima do nível médio): anchors = p10 / mediana / p90 de um ano
+const CAL_LO=0.30, CAL_MID=0.58, CAL_HI=0.85;
+const hex2rgb = h => { h=h.replace("#",""); if(h.length===3) h=h.split("").map(c=>c+c).join(""); return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)); };
+const mix = (a,b,u) => a.map((x,i)=>Math.round(x+(b[i]-x)*u));
+function calColor(mx){
+  const lo=hex2rgb(css("--cal-lo")), mid=hex2rgb(css("--cal-mid")), hi=hex2rgb(css("--cal-hi"));
+  let rgb;
+  if(mx<=CAL_LO) rgb=lo; else if(mx>=CAL_HI) rgb=hi;
+  else if(mx<CAL_MID) rgb=mix(lo,mid,(mx-CAL_LO)/(CAL_MID-CAL_LO)); else rgb=mix(mid,hi,(mx-CAL_MID)/(CAL_HI-CAL_MID));
+  const lum=(0.2126*rgb[0]+0.7152*rgb[1]+0.0722*rgb[2])/255;
+  return {bg:`rgb(${rgb.join(",")})`, fg: lum>0.55 ? "#0d2231" : "#ffffff"};
+}
+function moonIcon(x,y,ic,r=5,ln){ // visto do hemisfério Sul: crescente iluminada à esquerda
+  const lit=css("--sand"); ln = ln || css("--muted");
   let s=`<circle cx="${x}" cy="${y}" r="${r}" fill="${ic==="cheia"?lit:"none"}" stroke="${ic==="cheia"?lit:ln}" stroke-width="1"/>`;
   if(ic==="cresc") s+=`<path d="M${x} ${y-r}A${r} ${r} 0 0 0 ${x} ${y+r}Z" fill="${lit}"/>`;
   if(ic==="ming")  s+=`<path d="M${x} ${y-r}A${r} ${r} 0 0 1 ${x} ${y+r}Z" fill="${lit}"/>`;
@@ -565,16 +581,17 @@ function renderCal(now){
   const lead = WD[_wd(first+12*H)];
   const days=[]; for(let i=0,d=first;i<nd;i++,d=nextDay(d)) days.push(d);
   const infos = days.map(dayInfo), amps = infos.map(x=>x.amp).filter(x=>x!=null);
-  const amax = Math.max(...amps), amin = Math.min(...amps);
   const phases = moonPhases(first, nextDay(days[days.length-1]));
   let h = ""; for(let i=0;i<lead;i++) h += `<div class="cell blank"></div>`;
   infos.forEach((I,i)=>{
     const d=days[i], ph=phases.find(p=>p.t>=d&&p.t<I.z);
-    const a = I.amp==null? 0 : 25 + 75*(I.amp-amin)/Math.max(1e-6,amax-amin);
+    const mx = I.max? I.max.h : (I.pts.length? Math.max(...I.pts.map(p=>p[1])) : null);
+    const col = mx==null? null : calColor(mx);
     const cls = ["cell", d===today?"today":"", d===sel?"sel":"", d<today?"past":""].join(" ").trim();
-    h += `<button type="button" class="${cls}" data-day="${d}" aria-label="${fmtLong(d+12*H)}"><span class="dn">${i+1}</span>`+
-         (ph? `<svg viewBox="0 0 12 12" aria-hidden="true">${moonIcon(6,6,ph.ic,4.6)}</svg>`:"")+
-         `<span class="bar"><i style="--a:${a.toFixed(0)}%"></i></span></button>`;
+    const sty = col? ` style="background:${col.bg};color:${col.fg}"` : "";
+    h += `<button type="button" class="${cls}" data-day="${d}"${sty} aria-label="${fmtLong(d+12*H)}, máxima ${mx==null?"":s2(mx)} m"><span class="dn">${i+1}</span>`+
+         (ph? `<svg viewBox="0 0 12 12" aria-hidden="true">${moonIcon(6,6,ph.ic,4.6,"currentColor")}</svg>`:"")+
+         `<span class="mx">${mx==null?"":s2(mx)}</span></button>`;
   });
   $("cal").innerHTML = h;
   $("jump").value = dayKey(sel+12*H);
