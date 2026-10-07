@@ -74,6 +74,16 @@ input[type=number]{width:90px;font:inherit;padding:6px 8px;border-radius:8px;bor
 input[type=checkbox]{width:22px;height:22px}
 details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .spin{opacity:.5}
+.tbl{margin-top:8px}
+.tr{display:grid;grid-template-columns:62px 1fr 1fr 44px;gap:6px;padding:7px 0;border-bottom:1px solid var(--line);
+  font-size:13px;font-variant-numeric:tabular-nums;align-items:center}
+.tr:last-child{border-bottom:0}
+.tr.h{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;padding-top:0}
+.tr .dt{font-weight:600}
+.tr .hi{color:var(--up)} .tr .lo{color:var(--down)}
+.tr .am{text-align:right;color:var(--muted)}
+.tr.big .am{color:var(--ink);font-weight:700}
+.tr.today{background:var(--fill);border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px}
 </style>
 </head>
 <body>
@@ -128,6 +138,20 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
   </div>
 
   <div class="card">
+    <h2>Próximos 7 dias</h2>
+    <div class="chartbox"><svg id="chartW" viewBox="0 0 360 200" role="img" aria-label="Maré da semana"></svg></div>
+    <div class="sub" id="wkNote"></div>
+    <div id="week" class="tbl"></div>
+  </div>
+
+  <div class="card">
+    <h2>Próximos 30 dias · maré astronômica</h2>
+    <div class="chartbox"><svg id="chartM" viewBox="0 0 360 200" role="img" aria-label="Maré do mês"></svg></div>
+    <div class="sub" id="moNote"></div>
+    <div id="month" class="tbl"></div>
+  </div>
+
+  <div class="card">
     <h2>Vento e corrente</h2>
     <div id="wind"></div>
   </div>
@@ -136,6 +160,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <details>
       <summary>Ajustes</summary>
       <label>Somar ajuste de vento (estimativa)<input type="checkbox" id="optWind"></label>
+      <label>Atraso local (min)<input type="number" step="5" id="optLag" value="0"></label>
+      <label>Fator de amplitude<input type="number" step="0.05" id="optAmp" value="1"></label>
+      <div class="note"><p><b>Calibração local:</b> se você observar, por exemplo na régua do Iate Clube, que a preamar acontece 40 min depois do app e com altura 10% maior, ponha 40 e 1,10. O ajuste vale para todas as previsões.</p></div>
       <label>Deslocar referência (m)<input type="number" step="0.01" id="optOff" value="0"></label>
       <div class="note"><p>“Deslocar referência”: os níveis abaixo são relativos ao <b>nível médio do mar</b>. As tábuas da Marinha usam o <b>nível de redução (NR)</b>. Se você souber o Z0 (nível médio acima do NR) da estação de referência, digite aqui para os números ficarem comparáveis à tábua. Deixe 0 se não souber.</p></div>
     </details>
@@ -145,6 +172,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <h2>Como é calculado — leia</h2>
     <p><b>Fonte (fato):</b> nível do mar previsto pela Open-Meteo Marine API (<code>sea_level_height_msl</code>), que inclui maré astronômica e efeito barométrico, modelo numérico de ~8 km. Vento: Open-Meteo Forecast API.</p>
     <p><b>Cálculo (meu método):</b> a curva de Guaratuba é a média dos pontos de Paranaguá (barra/baía) e São Francisco do Sul (entrada da Babitonga), ponderada pelo inverso da distância até a barra de Guaratuba; valores entre horas interpolados por spline cúbica.</p>
+    <p><b>Semana e mês (meu método, análise harmônica):</b> o app baixa 1 ano de dados horários do mesmo modelo para os dois pontos, faz o ajuste por mínimos quadrados de 29 componentes de maré (M2, S2, N2, K1, O1, M4, MS4…; as mesmas usadas nas tábuas oficiais) e com isso projeta qualquer data. Isso é a <b>maré astronômica</b>: não inclui frentes frias, ressaca nem pressão atmosférica. Nos testes, o resíduo de “tempo” no modelo foi da ordem de ±13 cm (1 desvio-padrão), mais em tempestade. Na semana, até onde existe previsão meteorológica (~8 dias) o app usa a previsão completa; no mês, só a astronômica.</p>
     <p><b>Ajuste de vento (estimativa heurística, desligado por padrão):</b> vento sustentado de S/SW tende a empilhar água na costa e subir o nível; de N/NE, a baixar. O ajuste usa a média das últimas 12 h do vento na direção 200° com coeficiente ajustado por mim, não calibrado em marégrafo. O modelo já incorpora parte desse efeito, então ligar pode contar em dobro.</p>
     <p class="warn"><b>Limitação:</b> a própria Open-Meteo avisa que a precisão no litoral é limitada e que os dados <b>não servem para navegação costeira</b> nem substituem a tábua oficial. Dentro da baía de Guaratuba o horário pode atrasar e a amplitude mudar em relação à barra. Para navegar na barra, confira a tábua da Marinha (DHN/CHM).</p>
   </div>
@@ -162,23 +190,39 @@ const WIND_AXIS = 200;   // direção de origem (°) que mais eleva o nível —
 const WIND_K    = 0.0015;// m por (m/s)² — heurística, NÃO calibrada
 const MARINE = "https://marine-api.open-meteo.com/v1/marine";
 const METEO  = "https://api.open-meteo.com/v1/forecast";
+// velocidades angulares padrão das componentes de maré (graus/hora)
+const SPEEDS = {M2:28.9841042,S2:30.0,N2:28.4397295,K2:30.0821373,K1:15.0410686,O1:13.9430356,P1:14.9589314,Q1:13.3986609,
+  M4:57.9682084,MS4:58.9841042,MN4:57.4238337,M6:86.9523127,"2MS6":87.9682084,MK3:44.0251729,M3:43.4761563,
+  "2N2":27.8953548,MU2:27.9682084,NU2:28.5125831,L2:29.5284789,T2:29.9589333,J1:15.5854433,OO1:16.1391017,M1:14.4966939,
+  SA:0.0410686,SSA:0.0821373,MSF:1.0158958,MM:0.5443747,MF:1.0980331,"2Q1":12.8542862};
+const HARM_KEY = "mare-harm-v1", T_REF = Date.UTC(2026,0,1);
+const H = 3.6e6, DAY = 864e5;
 
 const $ = id => document.getElementById(id);
 const fmtT = ms => new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(ms);
 const fmtD = ms => new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,weekday:"short",day:"2-digit"}).format(ms);
+const fmtDM = ms => new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,day:"2-digit",month:"2-digit"}).format(ms);
+const fmtDMY = ms => new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,day:"2-digit",month:"2-digit",year:"2-digit"}).format(ms);
 const dayKey = ms => new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(ms);
+const hourOf = ms => Number(new Intl.DateTimeFormat("en-GB",{timeZone:TZ,hour:"2-digit",hourCycle:"h23"}).format(ms));
 const m2 = v => (v>=0?"+":"−") + Math.abs(v).toFixed(2).replace(".",",");
+const s2 = v => (v>=0?"":"−") + Math.abs(v).toFixed(2).replace(".",",");
 const dur = min => { min=Math.max(0,Math.round(min)); const h=Math.floor(min/60), m=min%60; return h? `${h} h ${String(m).padStart(2,"0")} min` : `${m} min`; };
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+// início do dia (meia-noite em Brasília, UTC−3 fixo desde 2019)
+const dayStart = ms => { const [y,m,d]=dayKey(ms).split("-").map(Number); return Date.UTC(y,m-1,d,3); };
 
-let S = null;          // dados carregados
+let S = null;          // previsão (Open-Meteo, inclui tempo)
+let HM = null;         // constantes harmônicas ajustadas
 let range = "day";
-const opt = { wind:false, off:0 };
+const opt = { wind:false, off:0, lag:0, amp:1 };
 try { const o = JSON.parse(localStorage.getItem("mare-opt")||"{}"); Object.assign(opt,o); range = localStorage.getItem("mare-range") || "day"; } catch(e){}
 
 function hav(a,b){ const R=6371, r=Math.PI/180;
   const dLa=(b.lat-a.lat)*r, dLo=(b.lon-a.lon)*r;
   const x=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2;
   return 2*R*Math.asin(Math.sqrt(x)); }
+function weights(p,s){ const dp=hav(G,p), ds=hav(G,s); const wp=(1/dp)/((1/dp)+(1/ds)); return {wp, ws:1-wp, dp, ds}; }
 
 async function getJSON(url, tries=3){
   for(let k=1;;k++){
@@ -190,12 +234,13 @@ async function getJSON(url, tries=3){
   }
 }
 
+// ---------- previsão de curto prazo ----------
 async function load(){
   $("upd").textContent = "atualizando…"; document.body.classList.add("spin");
-  const common = "&timeformat=unixtime&past_days=1&forecast_days=3&cell_selection=sea";
+  const common = "&timeformat=unixtime&past_days=1&forecast_days=8&cell_selection=sea";
   try{
     const reqs = [...ST, G].map(p => getJSON(`${MARINE}?latitude=${p.lat}&longitude=${p.lon}&hourly=sea_level_height_msl,ocean_current_velocity,ocean_current_direction${common}`));
-    reqs.push(getJSON(`${METEO}?latitude=${G.lat}&longitude=${G.lon}&hourly=wind_speed_10m,wind_direction_10m&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=ms&timeformat=unixtime&past_days=1&forecast_days=3`).catch(()=>null)); // vento é opcional
+    reqs.push(getJSON(`${METEO}?latitude=${G.lat}&longitude=${G.lon}&hourly=wind_speed_10m,wind_direction_10m&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=ms&timeformat=unixtime&past_days=1&forecast_days=8`).catch(()=>null)); // vento é opcional
     const res = await Promise.all(reqs);
     const series = res.slice(0,3).map(d => ({
       lat:d.latitude, lon:d.longitude,
@@ -205,9 +250,7 @@ async function load(){
     }));
     const w = res[3] || {hourly:{time:[],wind_speed_10m:[],wind_direction_10m:[]}, current:null, missing:true};
     S = { p:series[0], s:series[1], g:series[2], wind:w, at:Date.now() };
-    // pesos por inverso da distância (pontos efetivamente usados pelo modelo)
-    const dp = hav(G,S.p), ds = hav(G,S.s);
-    S.wp = (1/dp)/((1/dp)+(1/ds)); S.ws = 1-S.wp; S.dp=dp; S.ds=ds;
+    Object.assign(S, weights(S.p, S.s));
     build();
     $("msg").innerHTML = "";
     try{ localStorage.setItem("mare-cache", JSON.stringify(S)); }catch(e){}
@@ -217,9 +260,9 @@ async function load(){
     $("msg").innerHTML = `<div class="card warn err">Não consegui buscar dados novos (${e.message}). ${S? "Mostrando a última leitura salva, de "+fmtD(S.at)+" "+fmtT(S.at)+".":"Verifique a internet."}</div>`;
   }finally{ document.body.classList.remove("spin"); }
   render();
+  ensureHarm().then(render).catch(e=>{ $("moNote").textContent = "Não consegui calcular a projeção do mês ("+e.message+")."; });
 }
 
-// ---------- série combinada ----------
 function build(){
   const t = S.p.t, n = t.length, wt = S.wind.hourly.time.map(x=>x*1000);
   const ws = S.wind.hourly.wind_speed_10m, wd = S.wind.hourly.wind_direction_10m;
@@ -230,33 +273,81 @@ function build(){
     // componente do vento no eixo 200°, média das 12 h anteriores (heurística)
     let sum=0,c=0;
     for(let j=0;j<wt.length;j++){
-      const dt=(t[i]-wt[j])/3.6e6;
+      const dt=(t[i]-wt[j])/H;
       if(dt>=0 && dt<12 && ws[j]!=null){ sum += ws[j]*Math.cos((wd[j]-WIND_AXIS)*Math.PI/180); c++; }
     }
     const u = c? sum/c : 0;
-    S.adj.push(WIND_K*u*Math.abs(u));
+    S.adj.push(c? WIND_K*u*Math.abs(u) : null);
   }
+  const last = S.base.reduce((a,v,i)=> v!=null? i : a, 0);
+  S.fcEnd = t[last];
 }
 
-function seriesVals(){
-  return S.base.map((v,i)=> v==null?null : v + (opt.wind?S.adj[i]:0) + Number(opt.off||0));
+// ---------- análise harmônica (mínimos quadrados) ----------
+function solve(A, b){ // eliminação de Gauss com pivotamento parcial
+  const n=b.length;
+  for(let c=0;c<n;c++){
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(A[r][c])>Math.abs(A[p][c])) p=r;
+    [A[c],A[p]]=[A[p],A[c]]; [b[c],b[p]]=[b[p],b[c]];
+    for(let r=c+1;r<n;r++){ const f=A[r][c]/A[c][c]; if(!f) continue;
+      for(let k=c;k<n;k++) A[r][k]-=f*A[c][k]; b[r]-=f*b[c]; }
+  }
+  const x=new Array(n).fill(0);
+  for(let r=n-1;r>=0;r--){ let s=b[r]; for(let k=r+1;k<n;k++) s-=A[r][k]*x[k]; x[r]=s/A[r][r]; }
+  return x;
 }
-function shift(arr){ return arr.map(v=> v==null?null: v + Number(opt.off||0)); }
+function basis(t, w){ const th=(t-T_REF)/H, row=[1];
+  for(const s of w){ row.push(Math.cos(s*th), Math.sin(s*th)); } return row; }
+function harmFit(t, y){
+  const names=Object.keys(SPEEDS), w=names.map(k=>SPEEDS[k]*Math.PI/180), m=1+2*w.length;
+  const A=Array.from({length:m},()=>new Float64Array(m)), b=new Float64Array(m);
+  for(let i=0;i<t.length;i++){ const r=basis(t[i],w);
+    for(let a=0;a<m;a++){ const ra=r[a]; b[a]+=ra*y[i]; const Aa=A[a]; for(let c=a;c<m;c++) Aa[c]+=ra*r[c]; } }
+  for(let a=0;a<m;a++) for(let c=0;c<a;c++) A[a][c]=A[c][a];
+  const coef=solve(A.map(r=>Array.from(r)), Array.from(b));
+  let ss=0; for(let i=0;i<t.length;i++){ const r=basis(t[i],w); let v=0; for(let a=0;a<m;a++) v+=r[a]*coef[a]; ss+=(y[i]-v)**2; }
+  const amps = names.map((k,i)=>[k, Math.hypot(coef[1+2*i],coef[2+2*i])]).sort((a,b)=>b[1]-a[1]);
+  return {names, w, coef, rms:Math.sqrt(ss/t.length), n:t.length, amps};
+}
+async function ensureHarm(){
+  try{ const c=JSON.parse(localStorage.getItem(HARM_KEY)||"null");
+    if(c && Date.now()-c.at < 7*DAY){ HM=c; return; } }catch(e){}
+  $("moNote").textContent = "Calculando constantes harmônicas com 1 ano de dados…";
+  const end = dayKey(Date.now()), start = dayKey(Date.now()-366*DAY);
+  const q = `&hourly=sea_level_height_msl&timeformat=unixtime&cell_selection=sea&start_date=${start}&end_date=${end}`;
+  const [dp, ds] = await Promise.all(ST.map(p=>getJSON(`${MARINE}?latitude=${p.lat}&longitude=${p.lon}${q}`)));
+  const W = weights({lat:dp.latitude,lon:dp.longitude},{lat:ds.latitude,lon:ds.longitude});
+  const t=[], y=[], hp=dp.hourly.sea_level_height_msl, hs=ds.hourly.sea_level_height_msl;
+  dp.hourly.time.forEach((x,i)=>{ if(hp[i]!=null && hs[i]!=null){ t.push(x*1000); y.push(W.wp*hp[i]+W.ws*hs[i]); } });
+  if(t.length < 24*200) throw new Error("dados históricos insuficientes");
+  const f = harmFit(t, y);
+  HM = {at:Date.now(), w:f.w, coef:f.coef, rms:f.rms, n:f.n, from:t[0], to:t[t.length-1], amps:f.amps.slice(0,6)};
+  try{ localStorage.setItem(HARM_KEY, JSON.stringify(HM)); }catch(e){}
+}
+function harm(t){ if(!HM) return null; const r=basis(t,HM.w); let v=0; for(let a=0;a<r.length;a++) v+=r[a]*HM.coef[a]; return v; }
 
-// spline cúbica (Catmull-Rom) sobre série horária
-function interp(t, v, x){
-  const n=t.length; if(x<=t[0]) return v[0]; if(x>=t[n-1]) return v[n-1];
+// ---------- interpolação e previsões ----------
+function interp(t, v, x){ // spline Catmull-Rom sobre série horária
+  const n=t.length; if(!n || x<t[0] || x>t[n-1]) return null;
   const i = Math.min(n-2, Math.floor((x-t[0])/(t[1]-t[0])));
   const p0=v[Math.max(0,i-1)], p1=v[i], p2=v[i+1], p3=v[Math.min(n-1,i+2)];
   if([p0,p1,p2,p3].some(a=>a==null)) return null;
   const u=(x-t[i])/(t[i+1]-t[i]);
   return 0.5*((2*p1)+(-p0+p2)*u+(2*p0-5*p1+4*p2-p3)*u*u+(-p0+3*p1-3*p2+p3)*u*u*u);
 }
-
-function fine(v, step=5*60e3){
-  const out=[]; for(let x=S.t[0]; x<=S.t[S.t.length-1]; x+=step){ const y=interp(S.t,v,x); if(y!=null) out.push([x,y]); }
-  return out;
+const lagMs = () => (Number(opt.lag)||0)*60e3;
+const ampF  = () => Number(opt.amp)||1;
+function finalize(raw, t){ // aplica calibração local, vento (opcional) e referência
+  if(raw==null) return null;
+  const a = opt.wind ? (interp(S.t,S.adj,t)||0) : 0;
+  return ampF()*raw + a + (Number(opt.off)||0);
 }
+const fcAt = t => S ? finalize(interp(S.t,S.base,t-lagMs()), t) : null;          // previsão completa
+const hmAt = t => finalize(harm(t-lagMs()), t);                                   // só astronômica
+const bestAt = t => { const v=fcAt(t); return v!=null ? v : hmAt(t); };
+const rawAt = (arr,t) => { const r=interp(S.t,arr,t-lagMs()); return r==null?null: ampF()*r+(Number(opt.off)||0); };
+
+function sample(fn, t0, t1, step){ const out=[]; for(let x=t0;x<=t1;x+=step){ const y=fn(x); if(y!=null) out.push([x,y]); } return out; }
 function extremes(pts){
   const ex=[];
   for(let i=1;i<pts.length-1;i++){
@@ -264,26 +355,50 @@ function extremes(pts){
     if(b>a && b>=c) ex.push({t:pts[i][0],h:b,type:"high"});
     else if(b<a && b<=c) ex.push({t:pts[i][0],h:b,type:"low"});
   }
-  // remove oscilações espúrias (< 3 cm)
-  const f=[]; for(const e of ex){ const l=f[f.length-1];
-    if(l && Math.abs(l.h-e.h)<0.03){ if(l.type===e.type){ if((e.type==="high"&&e.h>l.h)||(e.type==="low"&&e.h<l.h)) f[f.length-1]=e; } else f.pop(); }
-    else if(l && l.type===e.type){ if((e.type==="high"&&e.h>l.h)||(e.type==="low"&&e.h<l.h)) f[f.length-1]=e; }
+  const f=[]; // remove oscilações espúrias (< 3 cm)
+  for(const e of ex){ const l=f[f.length-1];
+    if(l && l.type===e.type){ if((e.type==="high"&&e.h>l.h)||(e.type==="low"&&e.h<l.h)) f[f.length-1]=e; }
+    else if(l && Math.abs(l.h-e.h)<0.03) continue; // oscilação pequena: ignora e funde com o próximo extremo do mesmo tipo
     else f.push(e); }
   return f;
+}
+// fases da Lua: raiz da elongação Lua−Sol com fórmulas de baixa precisão
+// (Sol: ~0,01°; Lua: ~0,3°) → horário com erro da ordem de 30 min
+function elong(ms){
+  const r=Math.PI/180, d=(ms-Date.UTC(2000,0,1,12))/DAY, T=d/36525, S=x=>Math.sin(x*r);
+  const g=(357.528+0.9856003*d)*r, sun=280.460+0.9856474*d+1.915*Math.sin(g)+0.020*Math.sin(2*g);
+  const moon=218.32+481267.881*T+6.29*S(134.9+477198.85*T)-1.27*S(259.2-413335.38*T)+0.66*S(235.7+890534.23*T)
+            +0.21*S(269.9+954397.70*T)-0.19*S(357.5+35999.05*T)-0.11*S(186.6+966404.05*T);
+  return ((moon-sun)%360+360)%360;
+}
+function moonPhases(t0,t1){
+  const P=29.530588853*DAY, ref=Date.UTC(2000,0,6,18,14), out=[];
+  const k0=Math.floor((t0-ref)/P)-1;
+  for(let k=k0;k<k0+4+Math.ceil((t1-t0)/P);k++)
+    [["nova","Lua nova",0],["cresc","Crescente",.25],["cheia","Lua cheia",.5],["ming","Minguante",.75]].forEach(([ic,nm,f])=>{
+      let t=ref+(k+f)*P;
+      for(let it=0;it<6;it++){ const e=((elong(t)-f*360+540)%360)-180; t-=e/12.1907*DAY; }
+      if(t>=t0&&t<=t1) out.push({t,ic,nm}); });
+  return out.sort((a,b)=>a.t-b.t);
+}
+// ícone visto do hemisfério Sul: crescente iluminada à esquerda (“C”), minguante à direita
+function moonIcon(x,y,ic){
+  const r=5, lit=css("--s"), ln=css("--muted");
+  let s=`<circle cx="${x}" cy="${y}" r="${r}" fill="${ic==="cheia"?lit:"none"}" stroke="${ic==="cheia"?lit:ln}" stroke-width="1"/>`;
+  if(ic==="cresc") s+=`<path d="M${x} ${y-r}A${r} ${r} 0 0 0 ${x} ${y+r}Z" fill="${lit}"/>`;
+  if(ic==="ming")  s+=`<path d="M${x} ${y-r}A${r} ${r} 0 0 1 ${x} ${y+r}Z" fill="${lit}"/>`;
+  return s;
 }
 
 // ---------- render ----------
 function render(){
   if(!S) return;
   const now = Date.now();
-  const V = seriesVals();
-  const at = x => interp(S.t, V, x);
-  const h0 = at(now), h30 = at(now+30*60e3), h60 = at(now+60*60e3);
-  const rate = (at(now+5*60e3)-at(now-5*60e3))/(10/60); // m/h
+  const h0 = fcAt(now), h30 = fcAt(now+30*60e3), h60 = fcAt(now+60*60e3);
+  const rate = (fcAt(now+5*60e3)-fcAt(now-5*60e3))/(10/60); // m/h
   $("upd").textContent = "dados de " + fmtT(S.at);
   $("now").innerHTML = (h0==null?"–":m2(h0)) + "<small>m</small>";
-  const rising = rate>0;
-  const tr = $("trend");
+  const rising = rate>0, tr = $("trend");
   tr.className = "trend " + (Math.abs(rate)<0.02 ? "" : rising?"up":"down");
   tr.innerHTML = (Math.abs(rate)<0.02 ? "≈ Estofo" : rising? "↑ Enchendo" : "↓ Vazando")
     + `<span class="rate">${rate>=0?"+":"−"}${Math.abs(rate*100).toFixed(0)} cm/h</span>`;
@@ -292,21 +407,23 @@ function render(){
     $(id[1]).innerHTML = h==null||h0==null?"":`${h>h0?"▲":"▼"} ${Math.abs((h-h0)*100).toFixed(0)} cm`; };
   tile(["p30","d30"],h30); tile(["p60","d60"],h60);
 
-  const pts = fine(V, 2*60e3);
+  // curta: previsão completa; depois do fim dela, astronômica
+  const t0 = dayStart(now)-DAY, t1 = dayStart(now)+8*DAY;
+  const pts = sample(bestAt, t0, t1, 2*60e3);
   const ex = extremes(pts);
-  const fut = ex.filter(e=>e.t>now);
-  const nx = fut[0], nx2 = fut[1];
+  const fut = ex.filter(e=>e.t>now), nx = fut[0], nx2 = fut[1];
   let html="";
   if(nx){
     const verb = nx.type==="high" ? "para de subir" : "para de baixar";
-    html += `${rising?"Sobe":"Baixa"} por mais <b>${dur((nx.t-now)/60e3)}</b> — ${verb} às <b>${fmtT(nx.t)}</b>, ${nx.type==="high"?"preamar":"baixa-mar"} de <b>${m2(nx.h)} m</b>.`;
+    html += `${nx.type==="high"?"Sobe":"Baixa"} por mais <b>${dur((nx.t-now)/60e3)}</b> — ${verb} às <b>${fmtT(nx.t)}</b>, ${nx.type==="high"?"preamar":"baixa-mar"} de <b>${m2(nx.h)} m</b>.`;
     if(nx2) html += `<br>Depois ${nx2.type==="high"?"sobe até":"baixa até"} <b>${m2(nx2.h)} m</b> às <b>${fmtT(nx2.t)}</b> (em ${dur((nx2.t-now)/60e3)}).`;
   } else html = "Sem extremo previsto no horizonte dos dados.";
+  if(HM && h0!=null){ const a=h0-hmAt(now);
+    html += `<div class="sub">Efeito do tempo agora (previsão − maré astronômica): <b>${a>=0?"+":"−"}${Math.abs(a*100).toFixed(0)} cm</b></div>`; }
   $("next").innerHTML = html;
 
   const day = (k, el) => {
-    const list = ex.filter(e=>dayKey(e.t)===k);
-    const dpts = pts.filter(p=>dayKey(p[0])===k);
+    const list = ex.filter(e=>dayKey(e.t)===k), dpts = pts.filter(p=>dayKey(p[0])===k);
     if(!dpts.length){ $(el).innerHTML='<div class="row"><span>sem dados</span></div>'; return; }
     const mx = dpts.reduce((a,b)=>b[1]>a[1]?b:a), mn = dpts.reduce((a,b)=>b[1]<a[1]?b:a);
     let s = `<div class="row"><span>Máxima do dia</span><span class="up">${m2(mx[1])} m · ${fmtT(mx[0])}</span></div>`
@@ -315,79 +432,130 @@ function render(){
     s += list.map(e=>`<div class="row"><span>${e.type==="high"?"▲ Preamar":"▼ Baixa-mar"}${e.t<now?' <span style="color:var(--muted);font-weight:400">(passou)</span>':""}</span><span>${fmtT(e.t)} · ${m2(e.h)} m</span></div>`).join("");
     $(el).innerHTML = s;
   };
-  day(dayKey(now),"today"); day(dayKey(now+864e5),"tomorrow");
+  day(dayKey(now),"today"); day(dayKey(now+DAY),"tomorrow");
 
   windCard(now);
-  chart(now, V, pts, ex);
+  chartShort(now, pts, ex);
+
+  // semana
+  const w0 = dayStart(now), w1 = w0+7*DAY;
+  const wPts = sample(bestAt, w0, w1, 6*60e3), wEx = extremes(sample(bestAt, w0-DAY, w1+DAY, 4*60e3));
+  const fcEnd = S.fcEnd;
+  drawChart($("chartW"), {t0:w0, t1:w1, now, ticks:"days", main:wPts,
+    split: fcEnd < w1 ? fcEnd : null, moons: moonPhases(w0,w1)});
+  $("wkNote").textContent = fcEnd < w1
+    ? `Previsão completa (maré + tempo) até ${fmtD(fcEnd)} ${fmtT(fcEnd)}; depois, só astronômica (linha tracejada).`
+    : "Previsão completa (maré + efeito do tempo) do modelo.";
+  $("week").innerHTML = dayTable(wEx, w0, 7, now);
+
+  // mês (só astronômica)
+  if(HM){
+    const m0 = dayStart(now), m1 = m0+30*DAY;
+    const mPts = sample(hmAt, m0, m1, 15*60e3), mEx = extremes(sample(hmAt, m0-DAY, m1+DAY, 5*60e3));
+    drawChart($("chartM"), {t0:m0, t1:m1, now, ticks:"weeks", main:mPts, moons: moonPhases(m0,m1), thin:true});
+    $("moNote").innerHTML = `Ajuste com ${Math.round(HM.n/24)} dias de dados (${fmtDMY(HM.from)} a ${fmtDMY(HM.to)}), erro médio do ajuste ±${(HM.rms*100).toFixed(0)} cm — quase todo devido ao tempo, não à maré. Maiores componentes: ${HM.amps.slice(0,4).map(a=>a[0]+" "+(a[1]*100).toFixed(0)+" cm").join(", ")}. Em <b>negrito</b> os dias de maior amplitude (sizígia).<br>Lua (horário de Brasília, ±30 min): ${moonPhases(m0,m1).map(p=>`${p.nm} ${fmtDM(p.t)} ${fmtT(p.t)}`).join(" · ")}.`;
+    $("month").innerHTML = dayTable(mEx, m0, 30, now);
+  }
+}
+
+function dayTable(ex, d0, n, now){
+  const rows=[], amps=[];
+  for(let i=0;i<n;i++){
+    const ds=d0+i*DAY+H*2, k=dayKey(ds);   // +2h para evitar ambiguidade de fuso
+    const list=ex.filter(e=>dayKey(e.t)===k);
+    const hi=list.filter(e=>e.type==="high"), lo=list.filter(e=>e.type==="low");
+    const amp = hi.length&&lo.length ? Math.max(...hi.map(e=>e.h))-Math.min(...lo.map(e=>e.h)) : null;
+    rows.push({ds,k,hi,lo,amp}); if(amp!=null) amps.push(amp);
+  }
+  const thr = amps.slice().sort((a,b)=>b-a)[Math.max(0,Math.floor(amps.length*0.25)-1)] ?? Infinity;
+  const fmt = (arr,cls) => arr.map(e=>`<span class="${cls}">${fmtT(e.t)} ${s2(e.h)}</span>`).join("<br>") || "–";
+  return `<div class="tr h"><span>dia</span><span>▲ preamar</span><span>▼ baixa-mar</span><span class="am">amp.</span></div>` +
+    rows.map(r=>`<div class="tr${r.k===dayKey(now)?" today":""}${r.amp!=null&&r.amp>=thr&&n>7?" big":""}"><span class="dt">${fmtD(r.ds)}</span><span>${fmt(r.hi,"hi")}</span><span>${fmt(r.lo,"lo")}</span><span class="am">${r.amp==null?"":(r.amp*100).toFixed(0)}</span></div>`).join("");
 }
 
 function card8(d){ return ["N","NE","E","SE","S","SW","W","NW"][Math.round(((d%360)+360)%360/45)%8]; }
 function windCard(now){
   const c = S.wind.current || {};
   const kn = v => (v*1.943844).toFixed(0);
-  const i = S.t.findIndex(x=>x>now) - 1, ii = Math.max(0,i);
-  const k = S.t.findIndex(x=>x>now); const adjNow = interp(S.t, S.adj, now);
+  const ii = Math.max(0, S.t.findIndex(x=>x>now) - 1);
+  const adjNow = interp(S.t, S.adj, now) || 0;
   const cv = S.g.cv[ii], cd = S.g.cd[ii];
   const effect = adjNow>0.03 ? "tende a <b>elevar</b> o nível" : adjNow<-0.03 ? "tende a <b>baixar</b> o nível" : "efeito pequeno no nível";
   $("wind").innerHTML =
     `<div class="row"><span>Vento agora</span><span>${c.wind_speed_10m!=null? kn(c.wind_speed_10m)+" nós de "+card8(c.wind_direction_10m)+" ("+c.wind_direction_10m+"°)":"–"}</span></div>`+
     `<div class="row"><span>Rajadas</span><span>${c.wind_gusts_10m!=null? kn(c.wind_gusts_10m)+" nós":"–"}</span></div>`+
-    `<div class="row"><span>Vento últimas 12 h (heurística)</span><span>${effect} · ${m2(adjNow||0)} m${opt.wind?"":" (não somado)"}</span></div>`+
+    `<div class="row"><span>Vento últimas 12 h (heurística)</span><span>${effect} · ${m2(adjNow)} m${opt.wind?"":" (não somado)"}</span></div>`+
     `<div class="row"><span>Corrente (modelo, mar aberto)</span><span>${cv!=null? (cv/1.852).toFixed(1)+" nós p/ "+card8(cd):"–"}</span></div>`+
     `<div class="row"><span>Pesos da média</span><span>Paranaguá ${(S.wp*100).toFixed(0)}% · S. Francisco ${(S.ws*100).toFixed(0)}%</span></div>`+
     `<div class="note"><p>Pontos do modelo: Paranaguá ${S.p.lat.toFixed(2)}, ${S.p.lon.toFixed(2)} (${S.dp.toFixed(0)} km) · S. Francisco ${S.s.lat.toFixed(2)}, ${S.s.lon.toFixed(2)} (${S.ds.toFixed(0)} km). A corrente é do modelo oceânico de ~8 km, fora da barra — não é a corrente do canal.</p></div>`;
 }
 
-function chart(now, V, pts, ex){
-  const svg=$("chart"), W=360, H=220, L=34, R=8, T=14, B=26;
-  let t0,t1;
-  if(range==="day"){ const k=dayKey(now); const d=pts.filter(p=>dayKey(p[0])===k); t0=d[0][0]; t1=d[d.length-1][0]; }
-  else if(range==="12"){ t0=now-12*3.6e6; t1=now+12*3.6e6; }
-  else { t0=now-6*3.6e6; t1=now+42*3.6e6; }
-  const inR = p=>p[0]>=t0&&p[0]<=t1;
-  const main = pts.filter(inR);
-  const P = fine(shift(S.p.h),10*60e3).filter(inR), Sf = fine(shift(S.s.h),10*60e3).filter(inR), Gd = fine(shift(S.g.h),10*60e3).filter(inR);
-  const all=[...main,...P,...Sf,...Gd].map(p=>p[1]);
-  let lo=Math.min(...all), hi=Math.max(...all); const pad=(hi-lo)*0.12+0.02; lo-=pad; hi+=pad;
-  const X=t=>L+(t-t0)/(t1-t0)*(W-L-R), Y=h=>T+(hi-h)/(hi-lo)*(H-T-B);
-  const path=a=>a.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join("");
-  const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+// ---------- gráficos ----------
+function axes(o, X, Y, lo, hi, W, H_, L, R, T, B){
   let s="";
-  // grade horizontal
   const step = (hi-lo)>1.2?0.5:0.25;
   for(let v=Math.ceil(lo/step)*step; v<=hi; v+=step){
     s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css("--line")}" stroke-width="${Math.abs(v)<1e-9?1.2:.6}"/>`;
     s+=`<text x="${L-4}" y="${Y(v)+3.5}" font-size="9.5" text-anchor="end" fill="${css("--muted")}">${v.toFixed(2).replace(".",",")}</text>`;
   }
-  // grade vertical (horas)
-  const hrs = (t1-t0)/3.6e6, every = hrs<=26?3:6;
-  const first = Math.ceil(t0/3.6e6)*3.6e6;
-  for(let t=first;t<=t1;t+=3.6e6){
-    const hr = Number(new Intl.DateTimeFormat("en-GB",{timeZone:TZ,hour:"2-digit",hourCycle:"h23"}).format(t));
-    if(hr%every) continue;
-    s+=`<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${H-B}" stroke="${css("--line")}" stroke-width=".5"/>`;
-    s+=`<text x="${X(t)}" y="${H-B+13}" font-size="9.5" text-anchor="middle" fill="${css("--muted")}">${hr===0? fmtD(t):String(hr).padStart(2,"0")+"h"}</text>`;
+  if(o.ticks==="hours"){
+    const every = (o.t1-o.t0)/H<=26?3:6;
+    for(let t=Math.ceil(o.t0/H)*H;t<=o.t1;t+=H){ const hr=hourOf(t); if(hr%every) continue;
+      s+=`<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${H_-B}" stroke="${css("--line")}" stroke-width=".5"/>`;
+      s+=`<text x="${X(t)}" y="${H_-B+13}" font-size="9.5" text-anchor="middle" fill="${css("--muted")}">${hr===0? fmtD(t):String(hr).padStart(2,"0")+"h"}</text>`; }
+  } else {
+    for(let t=dayStart(o.t0);t<=o.t1;t+=DAY){ if(t<o.t0) continue;
+      const lbl = o.ticks==="days" || Math.round((t-dayStart(o.t0))/DAY)%7===0;
+      s+=`<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${H_-B}" stroke="${css("--line")}" stroke-width="${lbl?.6:.25}"/>`;
+      if(lbl && (o.ticks!=="days" || t+DAY<=o.t1+1e3)) s+=`<text x="${X(t+(o.ticks==="days"?DAY/2:0))}" y="${H_-B+13}" font-size="9.5" text-anchor="${o.ticks==="days"?"middle":"start"}" fill="${css("--muted")}">${o.ticks==="days"?fmtD(t+H*2):fmtDM(t+H*2)}</text>`; }
   }
-  // área
-  if(main.length) s+=`<path d="${path(main)}L${X(main[main.length-1][0])} ${H-B}L${X(main[0][0])} ${H-B}Z" fill="${css("--fill")}"/>`;
+  return s;
+}
+function drawChart(svg, o){
+  const W=360, H_=200, L=34, R=8, T=22, B=24;
+  const vals=o.main.map(p=>p[1]); if(!vals.length){ svg.innerHTML=""; return; }
+  let lo=Math.min(...vals), hi=Math.max(...vals); const pad=(hi-lo)*0.08+0.02; lo-=pad; hi+=pad;
+  const X=t=>L+(t-o.t0)/(o.t1-o.t0)*(W-L-R), Y=h=>T+(hi-h)/(hi-lo)*(H_-T-B);
+  const path=a=>a.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join("");
+  let s=axes(o,X,Y,lo,hi,W,H_,L,R,T,B);
+  s+=`<path d="${path(o.main)}L${X(o.main[o.main.length-1][0])} ${H_-B}L${X(o.main[0][0])} ${H_-B}Z" fill="${css("--fill")}"/>`;
+  const a = o.split? o.main.filter(p=>p[0]<=o.split) : o.main, b = o.split? o.main.filter(p=>p[0]>=o.split) : [];
+  s+=`<path d="${path(a)}" fill="none" stroke="${css("--accent")}" stroke-width="${o.thin?1.1:1.6}" stroke-linejoin="round"/>`;
+  if(b.length) s+=`<path d="${path(b)}" fill="none" stroke="${css("--accent")}" stroke-width="1.3" stroke-dasharray="3 3" opacity=".8"/>`;
+  for(const m of (o.moons||[])) s+=moonIcon(X(m.t), T-10, m.ic);
+  if(o.now>=o.t0&&o.now<=o.t1){ s+=`<line x1="${X(o.now)}" x2="${X(o.now)}" y1="${T}" y2="${H_-B}" stroke="${css("--ink")}" stroke-width="1" opacity=".6"/>`; }
+  svg.innerHTML=s;
+}
+function chartShort(now, pts, ex){
+  const svg=$("chart"), W=360, H_=220, L=34, R=8, T=14, B=26;
+  let t0,t1;
+  if(range==="day"){ t0=dayStart(now); t1=t0+DAY; }
+  else if(range==="12"){ t0=now-12*H; t1=now+12*H; }
+  else { t0=now-6*H; t1=now+42*H; }
+  const inR = p=>p[0]>=t0&&p[0]<=t1;
+  const main = pts.filter(inR);
+  const P = sample(t=>rawAt(S.p.h,t),t0,t1,10*60e3), Sf = sample(t=>rawAt(S.s.h,t),t0,t1,10*60e3), Gd = sample(t=>rawAt(S.g.h,t),t0,t1,10*60e3);
+  const all=[...main,...P,...Sf,...Gd].map(p=>p[1]); if(!all.length){ svg.innerHTML=""; return; }
+  let lo=Math.min(...all), hi=Math.max(...all); const pad=(hi-lo)*0.12+0.02; lo-=pad; hi+=pad;
+  const X=t=>L+(t-t0)/(t1-t0)*(W-L-R), Y=h=>T+(hi-h)/(hi-lo)*(H_-T-B);
+  const path=a=>a.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join("");
+  let s=axes({t0,t1,ticks:"hours"},X,Y,lo,hi,W,H_,L,R,T,B);
+  if(main.length) s+=`<path d="${path(main)}L${X(main[main.length-1][0])} ${H_-B}L${X(main[0][0])} ${H_-B}Z" fill="${css("--fill")}"/>`;
   s+=`<path d="${path(Gd)}" fill="none" stroke="${css("--g")}" stroke-width="1" stroke-dasharray="2 3"/>`;
   s+=`<path d="${path(P)}" fill="none" stroke="${css("--p")}" stroke-width="1.2" stroke-dasharray="5 4" opacity=".85"/>`;
   s+=`<path d="${path(Sf)}" fill="none" stroke="${css("--s")}" stroke-width="1.2" stroke-dasharray="5 4" opacity=".85"/>`;
-  // passado/futuro
   const past=main.filter(p=>p[0]<=now), futp=main.filter(p=>p[0]>=now);
   s+=`<path d="${path(past)}" fill="none" stroke="${css("--accent")}" stroke-width="2.6" stroke-linecap="round"/>`;
   s+=`<path d="${path(futp)}" fill="none" stroke="${css("--accent")}" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>`;
-  // extremos
   for(const e of ex.filter(e=>e.t>=t0&&e.t<=t1)){
     const y=Y(e.h), up=e.type==="high";
     s+=`<circle cx="${X(e.t)}" cy="${y}" r="3" fill="${css(up?"--up":"--down")}"/>`;
-    s+=`<text x="${X(e.t)}" y="${up?y-6:y+13}" font-size="9" text-anchor="middle" fill="${css("--ink")}">${fmtT(e.t)} ${e.h.toFixed(2).replace(".",",")}</text>`;
+    s+=`<text x="${X(e.t)}" y="${up?y-6:y+13}" font-size="9" text-anchor="middle" fill="${css("--ink")}">${fmtT(e.t)} ${s2(e.h)}</text>`;
   }
-  // agora
   if(now>=t0&&now<=t1){
-    const h=interp(S.t,V,now);
-    s+=`<line x1="${X(now)}" x2="${X(now)}" y1="${T-4}" y2="${H-B}" stroke="${css("--ink")}" stroke-width="1" opacity=".6"/>`;
-    s+=`<circle cx="${X(now)}" cy="${Y(h)}" r="5.5" fill="${css("--accent")}" stroke="${css("--card")}" stroke-width="2"/>`;
+    const h=fcAt(now);
+    s+=`<line x1="${X(now)}" x2="${X(now)}" y1="${T-4}" y2="${H_-B}" stroke="${css("--ink")}" stroke-width="1" opacity=".6"/>`;
+    if(h!=null) s+=`<circle cx="${X(now)}" cy="${Y(h)}" r="5.5" fill="${css("--accent")}" stroke="${css("--card")}" stroke-width="2"/>`;
     const xa=X(now), anc = xa<L+20?"start":xa>W-R-20?"end":"middle";
     s+=`<text x="${xa}" y="${T-5}" font-size="9.5" text-anchor="${anc}" font-weight="700" fill="${css("--ink")}">agora</text>`;
   }
@@ -401,12 +569,14 @@ document.querySelectorAll("#tabs button").forEach(b=>{
   b.onclick=()=>{ range=b.dataset.r; try{localStorage.setItem("mare-range",range);}catch(e){}
     document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x===b)); render(); };
 });
-$("optWind").checked = !!opt.wind; $("optOff").value = opt.off||0;
-const saveOpt=()=>{ opt.wind=$("optWind").checked; opt.off=parseFloat(String($("optOff").value).replace(",","."))||0;
+$("optWind").checked = !!opt.wind; $("optOff").value = opt.off||0; $("optLag").value = opt.lag||0; $("optAmp").value = opt.amp||1;
+const num = id => parseFloat(String($(id).value).replace(",","."));
+const saveOpt=()=>{ opt.wind=$("optWind").checked; opt.off=num("optOff")||0; opt.lag=num("optLag")||0;
+  const a=num("optAmp"); opt.amp = a>0.2&&a<3 ? a : 1;
   try{localStorage.setItem("mare-opt",JSON.stringify(opt));}catch(e){} render(); };
-$("optWind").onchange=saveOpt; $("optOff").oninput=saveOpt;
+["optWind","optOff","optLag","optAmp"].forEach(id=>{ $(id).onchange=saveOpt; $(id).oninput=saveOpt; });
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ (!S||Date.now()-S.at>10*60e3)? load() : render(); }});
-setInterval(render, 30e3);
+setInterval(render, 60e3);
 setInterval(()=>{ if(!document.hidden) load(); }, 15*60e3);
 load();
 </script>

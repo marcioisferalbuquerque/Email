@@ -46,4 +46,4 @@ e marque **"Notificações para todas as macros"**. Depois reinicie o Outlook.
 
 ## Maré · Guaratuba (`mare/`)
 
-Web app (para salvar na tela de início do iPhone) que estima a maré em Guaratuba como média ponderada dos pontos de Paranaguá e São Francisco do Sul, usando a Open-Meteo Marine API. Não serve para navegação — confira a tábua oficial da Marinha.
+Web app (para salvar na tela de início do iPhone) que estima a maré em Guaratuba como média ponderada dos pontos de Paranaguá e São Francisco do Sul, usando a Open-Meteo Marine API. Mostra agora/30 min/1 h, extremos do dia, semana (previsão com efeito do tempo) e 30 dias (maré astronômica por análise harmônica de 1 ano de dados, 29 componentes) com fases da Lua. Não serve para navegação — confira a tábua oficial da Marinha.
