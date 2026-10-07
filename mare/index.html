@@ -474,7 +474,10 @@ async function loadLive(){
       const m=sel.reduce((a,p)=>a+p[1],0)/sel.length; s+=m/sr.km; w+=1/sr.km; }
     if(w>0){ t.push(b); v.push(s/w); } }
   if(!t.length){ OBS=null; return; }
-  OBS={t, v, end:t[t.length-1], endV:v[v.length-1], st, at:now};
+  // suaviza (o efeito do tempo varia em horas; o ruído do sensor, em minutos): média móvel centrada de 3 h
+  const vs=v.map((_,i)=>{ let s=0,c=0; for(let j=Math.max(0,i-9);j<=Math.min(v.length-1,i+9);j++){ if(Math.abs(t[j]-t[i])<=90*60e3){ s+=v[j]; c++; } } return s/c; });
+  const tail=v.filter((_,i)=>t[i]>t[t.length-1]-2*H); const endV=tail.reduce((a,b)=>a+b,0)/tail.length;
+  OBS={t, v:vs, end:t[t.length-1], endV, st, at:now};
 }
 
 function modelSeries(){
@@ -648,8 +651,8 @@ function renderNow(now){
     rows += `<button type="button" class="dayrow" data-day="${d}"><span class="dt">${fmtD(d+2*H)}</span><span>${f(I.hi,"hi")}</span><span>${f(I.lo,"lo")}</span><span class="am">${I.amp==null?"":(I.amp*100).toFixed(0)}</span></button>`;
   }
   $("week").innerHTML = rows;
-  $("legend").innerHTML = `<span><i style="background:var(--sea)"></i>Guaratuba${MODE==="web"?" (previsão)":""}</span>` +
-    (MODE==="web" ? `<span><i style="background:var(--slate)"></i>só maré astronômica</span><span><i style="background:var(--violet)"></i>Paranaguá (modelo)</span><span><i style="background:var(--sand)"></i>S. Francisco (modelo)</span>` : "");
+  $("legend").innerHTML = `<span><i style="background:var(--sea)"></i>Guaratuba${MODE==="web"?" (maré + efeito do tempo)":""}</span>` +
+    (MODE==="web" ? `<span><i style="background:var(--slate)"></i>só maré astronômica</span>` : "");
 }
 
 function renderCal(now){
@@ -785,18 +788,14 @@ function chartShort(now, pts, ex){
   else { t0=now-6*H; t1=now+42*H; }
   const inR = p=>p[0]>=t0&&p[0]<=t1, main = pts.filter(inR);
   const web = MODE==="web";
-  const P = web? sample(x=>rawAt("p",x),t0,t1,10*60e3):[], Sf = web? sample(x=>rawAt("s",x),t0,t1,10*60e3):[], A = web? sample(astAt,t0,t1,10*60e3):[];
-  const all=[...main,...P,...Sf,...A].map(p=>p[1]); if(!all.length){ svg.innerHTML=""; return; }
+  const A = web? sample(astAt,t0,t1,10*60e3):[];
+  const all=[...main,...A].map(p=>p[1]); if(!all.length){ svg.innerHTML=""; return; }
   let lo=Math.min(...all), hi=Math.max(...all); const pad=(hi-lo)*0.12+0.02; lo-=pad; hi+=pad;
   const X=t=>L+(t-t0)/(t1-t0)*(W-L-R), Y=h=>T+(hi-h)/(hi-lo)*(H_-T-B);
   const path=a=>a.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join("");
   let s=axes({t0,t1},X,Y,lo,hi,W,H_,L,R,T,B);
   if(main.length) s+=`<path d="${path(main)}L${X(main[main.length-1][0])} ${H_-B}L${X(main[0][0])} ${H_-B}Z" fill="${css("--sea-soft")}"/>`;
-  if(web){
-    s+=`<path d="${path(A)}" fill="none" stroke="${css("--slate")}" stroke-width="1.1" stroke-dasharray="2 3"/>`;
-    s+=`<path d="${path(P)}" fill="none" stroke="${css("--violet")}" stroke-width="1.2" stroke-dasharray="5 4" opacity=".85"/>`;
-    s+=`<path d="${path(Sf)}" fill="none" stroke="${css("--sand")}" stroke-width="1.2" stroke-dasharray="5 4" opacity=".85"/>`;
-  }
+  if(web) s+=`<path d="${path(A)}" fill="none" stroke="${css("--slate")}" stroke-width="1.2" stroke-dasharray="3 3"/>`;
   const past=main.filter(p=>p[0]<=now), futp=main.filter(p=>p[0]>=now);
   s+=`<path d="${path(past)}" fill="none" stroke="${css("--sea")}" stroke-width="2.6" stroke-linecap="round"/>`;
   s+=`<path d="${path(futp)}" fill="none" stroke="${css("--sea")}" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>`;
