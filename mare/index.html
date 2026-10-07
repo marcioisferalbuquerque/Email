@@ -193,8 +193,8 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sea)}
         </div>
         <div class="wk"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
         <div class="cal" id="cal"></div>
-        <div class="scale"><span>sobe pouco<br>≤ 0,30 m</span><span class="bar"></span><span style="text-align:right">sobe muito<br>≥ 0,85 m</span></div>
-        <div class="callegend">Cor e número = altura máxima que a maré alcança no dia (metros acima do nível médio). Laranja: dia de maré fraca; azul escuro: maré alta. Círculo no canto: fase da Lua. Dia de hoje sublinhado.</div>
+        <div class="scale"><span id="scaleLo">sobe pouco</span><span class="bar"></span><span id="scaleHi" style="text-align:right">sobe muito</span></div>
+        <div class="callegend" id="calNote"></div>
       </div>
       <div class="card" id="dayCard">
         <h3 class="dtitle" id="dTitle">–</h3>
@@ -217,7 +217,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sea)}
       <div class="card">
         <h2>Ajustes</h2>
         <label class="set" for="optBase">Base da maré<select id="optBase"></select></label>
-        <label class="set" id="datumRow" for="optDatum">Alturas em relação a<select id="optDatum"><option value="mean">nível médio</option><option value="nr">NR (como na tábua)</option></select></label>
+        <label class="set" id="datumRow" for="optDatum">Zero das alturas<select id="optDatum"><option value="nr">zero da tábua (NR aprox.)</option><option value="mean">nível médio do mar</option></select></label>
         <label class="set" id="windRow" for="optWind">Somar ajuste de vento (estimativa)<input type="checkbox" id="optWind"></label>
         <label class="set" for="optLag">Atraso local (min)<input type="number" step="5" id="optLag" value="0"></label>
         <label class="set" for="optAmp">Fator de amplitude<input type="number" step="0.05" id="optAmp" value="1"></label>
@@ -252,6 +252,9 @@ const METEO  = "https://api.open-meteo.com/v1/forecast";
 const H = 3.6e6, DAY = 864e5;
 const WIND_AXIS = 200, WIND_K = 0.0015;   // heurística de vento — NÃO calibrada
 const WP = 0.426;                         // peso de Paranaguá na média (inverso da distância: 50 km × 37 km)
+// Zero da tábua (NR) aproximado: nível médio − NR = 0,79 m na barra de Paranaguá (Galheta), tábua DHN 2026.
+// O NR oficial de Guaratuba não é publicado; o de São Francisco do Sul é 0,89 m (incerteza ~10 cm).
+const NR_OFFSET = 0.79;
 
 // Previsão harmônica padrão: h(t) = Z0 + Σ f·H·cos(V + u − g), g = fase de Greenwich (graus), t em UTC.
 // V a partir das longitudes médias (Meeus); f,u pelas fórmulas clássicas de Doodson/Schureman.
@@ -373,7 +376,9 @@ let range = store.get("mare-range","day");
 let tab = "agora";
 let sel = dayStart(Date.now());                              // dia escolhido no calendário
 let cal = (()=>{ const [y,m]=dayKey(Date.now()).split("-").map(Number); return {y, m:m-1}; })();
-const opt = Object.assign({ wind:false, off:0, lag:0, amp:1, base:DEFAULT_BASE, datum:"mean" }, store.get("mare-opt",{}));
+const opt = Object.assign({ wind:false, off:0, lag:0, amp:1, base:DEFAULT_BASE, datum:"nr" }, store.get("mare-opt",{}));
+const datumOff = () => (opt.datum==="nr" ? NR_OFFSET : 0) + (Number(opt.off)||0);
+const fmtH = v => opt.datum==="nr" ? s2(v) : m2(v);          // na convenção da tábua, sem sinal "+"
 if(!BASES[opt.base]) opt.base = DEFAULT_BASE;
 if(MODE!=="web") opt.wind = false;
 
@@ -443,14 +448,13 @@ function metAt(x){
 }
 function astAt(x){
   const b=BASES[opt.base], lag=(Number(opt.lag)||0)*60e3, amp=Number(opt.amp)||1;
-  const z = (opt.datum==="nr" && b.nr) ? b.z0 : 0;
-  return amp*b.ev(x-lag) + z + (Number(opt.off)||0);
+  return amp*b.ev(x-lag) + datumOff();
 }
 const windAt = x => (opt.wind && MET && MET.wadj.length) ? (lin(MET.t,MET.wadj,x)||0) : 0;
 const levelAt = x => astAt(x) + metAt(x) + windAt(x);
 const rawAt = (k,x) => { if(!S) return null; const s=S[k]; const v=lin(s.t,s.h,x); if(v==null) return null;
   const z = k==="p"?Z0P : k==="s"?Z0S : BASES.celula.z0;
-  return v - z + (Number(opt.off)||0) + ((opt.datum==="nr"&&BASES[opt.base].nr)?BASES[opt.base].z0:0); };
+  return v - z + datumOff(); };
 const withWeather = (a,b) => !!(MET && MET.end && a < MET.end+12*H && b > MET.first);
 
 function sample(fn, t0, t1, step){ const out=[]; for(let x=t0;x<=t1;x+=step){ const y=fn(x); if(y!=null) out.push([x,y]); } return out; }
@@ -521,7 +525,7 @@ function moonIcon(x,y,ic,r=5,ln){ // visto do hemisfério Sul: crescente ilumina
 }
 
 // ================= telas =================
-function refLabel(){ return (opt.datum==="nr" && BASES[opt.base].nr) ? "ref.: NR da tábua" : "ref.: nível médio"; }
+function refLabel(){ return opt.datum==="nr" ? "zero da tábua (NR aprox.)" : "ref.: nível médio"; }
 function render(){
   const now=Date.now();
   $("upd").textContent = MODE!=="web" ? "maré astronômica · calculada no aparelho" : (S ? "previsão de " + fmtT(S.at) : "sem previsão online");
@@ -534,33 +538,33 @@ function renderNow(now){
   const b = BASES[opt.base];
   const h0 = levelAt(now), h30 = levelAt(now+30*60e3), h60 = levelAt(now+60*60e3);
   const rate = (levelAt(now+5*60e3)-levelAt(now-5*60e3))/(10/60);
-  $("now").innerHTML = m2(h0) + "<small>m</small>";
+  $("now").innerHTML = fmtH(h0) + "<small>m</small>";
   const tr=$("trend");
   tr.className = "trend " + (Math.abs(rate)<0.02 ? "" : rate>0?"up":"down");
   tr.innerHTML = (Math.abs(rate)<0.02 ? "≈ Estofo" : rate>0? "↑ Enchendo" : "↓ Vazando") + `<span class="rate">${rate>=0?"+":"−"}${Math.abs(rate*100).toFixed(0)} cm/h</span>`;
   $("nowsub").textContent = `agora, ${fmtT(now)} · ${refLabel()}`;
-  const tile=(id,h)=>{ $(id[0]).textContent = m2(h)+" m"; $(id[1]).textContent = `${h>h0?"▲":"▼"} ${Math.abs((h-h0)*100).toFixed(0)} cm`; };
+  const tile=(id,h)=>{ $(id[0]).textContent = fmtH(h)+" m"; $(id[1]).textContent = `${h>h0?"▲":"▼"} ${Math.abs((h-h0)*100).toFixed(0)} cm`; };
   tile(["p30","d30"],h30); tile(["p60","d60"],h60);
 
   const d0 = dayStart(now), pts = sample(levelAt, d0-DAY, d0+3*DAY, 2*60e3), ex = extremes(pts);
   const fut = ex.filter(e=>e.t>now), nx = fut[0], nx2 = fut[1];
   let html = "";
   if(nx){
-    html += `${nx.type==="high"?"Sobe":"Baixa"} por mais <b>${dur((nx.t-now)/60e3)}</b>: ${nx.type==="high"?"para de subir":"para de baixar"} às <b>${fmtT(nx.t)}</b>, ${nx.type==="high"?"preamar":"baixa-mar"} de <b>${m2(nx.h)} m</b>.`;
-    if(nx2) html += `<br>Depois ${nx2.type==="high"?"sobe até":"baixa até"} <b>${m2(nx2.h)} m</b> às <b>${fmtT(nx2.t)}</b> (em ${dur((nx2.t-now)/60e3)}).`;
+    html += `${nx.type==="high"?"Sobe":"Baixa"} por mais <b>${dur((nx.t-now)/60e3)}</b>: ${nx.type==="high"?"para de subir":"para de baixar"} às <b>${fmtT(nx.t)}</b>, ${nx.type==="high"?"preamar":"baixa-mar"} de <b>${fmtH(nx.h)} m</b>.`;
+    if(nx2) html += `<br>Depois ${nx2.type==="high"?"sobe até":"baixa até"} <b>${fmtH(nx2.h)} m</b> às <b>${fmtT(nx2.t)}</b> (em ${dur((nx2.t-now)/60e3)}).`;
   }
   const met = metAt(now);
   html += MODE==="web"
-    ? `<div class="sub">Maré astronômica ${m2(astAt(now))} m ${met>=0?"+":"−"} efeito do tempo ${Math.abs(met*100).toFixed(0)} cm${opt.wind?` + vento ${cm(windAt(now))}`:""} · base: ${b.curto}</div>`
+    ? `<div class="sub">Maré astronômica ${fmtH(astAt(now))} m ${met>=0?"+":"−"} efeito do tempo ${Math.abs(met*100).toFixed(0)} cm${opt.wind?` + vento ${cm(windAt(now))}`:""} · base: ${b.curto}</div>`
     : `<div class="sub">Maré astronômica (sem o efeito do tempo nesta versão) · base: ${b.curto}</div>`;
   $("next").innerHTML = html;
 
   const day = (a, el) => {
     const I = dayInfo(a);
-    $(el).innerHTML = (I.max? `<div class="row"><span>Máxima do dia</span><span class="up">${m2(I.max.h)} m · ${fmtT(I.max.t)}</span></div>`:"")
-      + (I.min? `<div class="row"><span>Mínima do dia</span><span class="down">${m2(I.min.h)} m · ${fmtT(I.min.t)}</span></div>`:"")
+    $(el).innerHTML = (I.max? `<div class="row"><span>Máxima do dia</span><span class="up">${fmtH(I.max.h)} m · ${fmtT(I.max.t)}</span></div>`:"")
+      + (I.min? `<div class="row"><span>Mínima do dia</span><span class="down">${fmtH(I.min.h)} m · ${fmtT(I.min.t)}</span></div>`:"")
       + (I.amp!=null? `<div class="row"><span>Amplitude</span><span>${(I.amp*100).toFixed(0)} cm</span></div>`:"")
-      + I.ex.map(e=>`<div class="row"><span>${e.type==="high"?"▲ Preamar":"▼ Baixa-mar"}${e.t<now?' <span style="color:var(--muted);font-weight:400">(passou)</span>':""}</span><span>${fmtT(e.t)} · ${m2(e.h)} m</span></div>`).join("");
+      + I.ex.map(e=>`<div class="row"><span>${e.type==="high"?"▲ Preamar":"▼ Baixa-mar"}${e.t<now?' <span style="color:var(--muted);font-weight:400">(passou)</span>':""}</span><span>${fmtT(e.t)} · ${fmtH(e.h)} m</span></div>`).join("");
   };
   day(d0,"today"); day(nextDay(d0),"tomorrow");
   chartShort(now, pts, ex);
@@ -588,7 +592,7 @@ function renderCal(now){
   infos.forEach((I,i)=>{
     const d=days[i], ph=phases.find(p=>p.t>=d&&p.t<I.z);
     const mx = I.max? I.max.h : (I.pts.length? Math.max(...I.pts.map(p=>p[1])) : null);
-    const col = mx==null? null : calColor(mx);
+    const col = mx==null? null : calColor(mx - datumOff());
     const cls = ["cell", d===today?"today":"", d===sel?"sel":"", d<today?"past":""].join(" ").trim();
     const sty = col? ` style="background:${col.bg};color:${col.fg}"` : "";
     h += `<button type="button" class="${cls}" data-day="${d}"${sty} aria-label="${fmtLong(d+12*H)}, máxima ${mx==null?"":s2(mx)} m"><span class="dn">${i+1}</span>`+
@@ -596,6 +600,10 @@ function renderCal(now){
          `<span class="mx">${mx==null?"":s2(mx)}</span></button>`;
   });
   $("cal").innerHTML = h;
+  $("scaleLo").innerHTML = `sobe pouco<br>≤ ${s2(CAL_LO+datumOff())} m`; $("scaleHi").innerHTML = `sobe muito<br>≥ ${s2(CAL_HI+datumOff())} m`;
+  $("calNote").textContent = opt.datum==="nr"
+    ? "Cor e número = altura máxima da maré no dia, em metros acima do zero da tábua (NR aproximado). Laranja: maré fraca; azul escuro: maré alta. Círculo no canto: fase da Lua. Hoje sublinhado."
+    : "Cor e número = altura máxima da maré no dia, em metros acima do nível médio do mar. Laranja: maré fraca; azul escuro: maré alta. Círculo no canto: fase da Lua. Hoje sublinhado.";
   $("jump").value = dayKey(sel+12*H);
   renderDay(sel, now, amps);
 }
@@ -613,9 +621,9 @@ function renderDay(d, now, monthAmps){
   for(const p of moonPhases(d, z)) chips.push(`<span class="chip">${p.nm} às ${fmtT(p.t)}</span>`);
   chips.push(`<span class="chip">${I.weather? "com efeito do tempo previsto" : "maré astronômica"}</span>`);
   $("dChips").innerHTML = chips.join("");
-  $("dMax").textContent = I.max? m2(I.max.h)+" m" : "–"; $("dMaxT").textContent = I.max? "preamar às "+fmtT(I.max.t) : "";
-  $("dMin").textContent = I.min? m2(I.min.h)+" m" : "–"; $("dMinT").textContent = I.min? "baixa-mar às "+fmtT(I.min.t) : "";
-  $("dList").innerHTML = I.ex.map(e=>`<div class="row"><span>${e.type==="high"?"▲ Preamar":"▼ Baixa-mar"}</span><span class="${e.type==="high"?"up":"down"}">${fmtT(e.t)} · ${m2(e.h)} m</span></div>`).join("") || `<div class="row"><span>sem extremos neste dia</span></div>`;
+  $("dMax").textContent = I.max? fmtH(I.max.h)+" m" : "–"; $("dMaxT").textContent = I.max? "preamar às "+fmtT(I.max.t) : "";
+  $("dMin").textContent = I.min? fmtH(I.min.h)+" m" : "–"; $("dMinT").textContent = I.min? "baixa-mar às "+fmtT(I.min.t) : "";
+  $("dList").innerHTML = I.ex.map(e=>`<div class="row"><span>${e.type==="high"?"▲ Preamar":"▼ Baixa-mar"}</span><span class="${e.type==="high"?"up":"down"}">${fmtT(e.t)} · ${fmtH(e.h)} m</span></div>`).join("") || `<div class="row"><span>sem extremos neste dia</span></div>`;
   let hh=""; for(let t=d; t<z; t+=H) hh += `<div><span>${String(hourOf(t)).padStart(2,"0")}h</span><span>${s2(levelAt(t))}</span></div>`;
   $("dHours").innerHTML = hh;
   $("dNote").textContent = `Alturas em metros, ${refLabel()}. ` + (I.weather ? "Inclui o efeito do tempo previsto pelo modelo." :
@@ -644,6 +652,8 @@ function renderMore(now){
   const fcEnd = MET&&MET.end ? `${fmtD(MET.end)} ${fmtT(MET.end)}` : "—";
   $("srcinfo").innerHTML =
     `<div class="row"><span>Maré astronômica</span><span>${b.curto}</span></div>`+
+    `<div class="row"><span>Zero das alturas</span><span>${opt.datum==="nr" ? "NR aprox. = nível médio − 0,79 m" : "nível médio do mar"}</span></div>`+
+    (opt.datum==="nr" ? `<div class="note"><p>O NR (nível de redução) oficial de Guaratuba não é publicado. Uso o da barra de Paranaguá (Galheta): nível médio 0,79 m acima do NR, da tábua DHN 2026. Em São Francisco do Sul é 0,89 m; a incerteza é dessa ordem, ~10 cm.</p></div>` : "")+
     (b.fonte? `<div class="note"><p>${b.fonte}</p></div>`:"")+
     (MODE==="web"
       ? `<div class="row"><span>Efeito do tempo</span><span>Open-Meteo até ${fcEnd}</span></div><div class="row"><span>Efeito do tempo agora</span><span>${cm(metAt(now))}</span></div>`
@@ -724,7 +734,7 @@ function drawDay(svg, I, now){
 }
 
 // ================= controles =================
-const INFO = "<h2>Como é calculado</h2>\n<p><b>1. Maré astronômica.</b> Soma das componentes de maré (M2, S2, O1, K1, M4…) com as correções do ciclo de 18,6 anos da Lua, no método padrão internacional (o mesmo da NOAA e dos modelos globais). Testei o cálculo contra previsões oficiais da NOAA: erro de cerca de 1 cm e horários de preamar e baixa-mar com 0 a 6 minutos de diferença.</p>\n<p><b>2. Constantes.</b> Por padrão, as do <b>marégrafo real da barra de Guaratuba</b> (SiMCosta/CEM-UFPR, 55 dias de 2018, a 1,5 km do ponto de referência). Em \"Mais → Ajustes\" dá para trocar pelas constantes do modelo oceânico Open-Meteo (~8 km), que, comparadas ao marégrafo, adiantam a maré em cerca de 45 a 55 minutos.</p>\n<p><b>3. Efeito do tempo.</b> Diferença entre a previsão do Open-Meteo (que inclui pressão do ar e o efeito do vento que o modelo representa) e a maré astronômica do mesmo modelo, suavizada em 25 horas. Cobre cerca de 9 dias; depois disso, só a astronômica.</p>\n<p><b>4. Vento (opcional, desligado).</b> Estimativa minha: vento sul/sudoeste firme tende a subir o nível; nordeste, a baixar. Não é calibrado.</p>\n<p class=\"warn\">Dentro da baía o horário e a altura podem diferir da barra. Para atravessar a barra, use a tábua oficial da Marinha (DHN/CHM). Sem internet, o app continua mostrando a maré astronômica.</p>\n";
+const INFO = "<h2>Como é calculado</h2>\n<p><b>1. Maré astronômica.</b> Soma das componentes de maré (M2, S2, O1, K1, M4…) com as correções do ciclo de 18,6 anos da Lua, no método padrão internacional (o mesmo da NOAA e dos modelos globais). Testei o cálculo contra previsões oficiais da NOAA: erro de cerca de 1 cm e horários de preamar e baixa-mar com 0 a 6 minutos de diferença.</p>\n<p><b>2. Constantes.</b> Por padrão, as do <b>marégrafo real da barra de Guaratuba</b> (SiMCosta/CEM-UFPR, 55 dias de 2018, a 1,5 km do ponto de referência). Em \"Mais → Ajustes\" dá para trocar pelas constantes do modelo oceânico Open-Meteo (~8 km), que, comparadas ao marégrafo, adiantam a maré em cerca de 45 a 55 minutos.</p>\n<p><b>3. Efeito do tempo.</b> Diferença entre a previsão do Open-Meteo (que inclui pressão do ar e o efeito do vento que o modelo representa) e a maré astronômica do mesmo modelo, suavizada em 25 horas. Cobre cerca de 9 dias; depois disso, só a astronômica.</p>\n<p><b>4. Vento (opcional, desligado).</b> Estimativa minha: vento sul/sudoeste firme tende a subir o nível; nordeste, a baixar. Não é calibrado.</p>\n<p><b>Alturas.</b> Por padrão, em metros acima do <b>zero da tábua</b> (nível de redução, NR), como na tábua da Marinha, para facilitar a conversa com quem navega. Como o NR oficial de Guaratuba não é publicado, uso o da barra de Paranaguá (Galheta): nível médio 0,79 m acima do NR (tábua DHN 2026); em São Francisco do Sul é 0,89 m. Incerteza dessa ordem, ~10 cm. Em Ajustes dá para voltar ao nível médio.</p>\n<p class=\"warn\">Dentro da baía o horário e a altura podem diferir da barra. Para atravessar a barra, use a tábua oficial da Marinha (DHN/CHM). Sem internet, o app continua mostrando a maré astronômica.</p>\n";
 $("reload").onclick = () => { if(MODE==="web") load(); else render(); };
 document.querySelectorAll("#tabs button").forEach(b=>{
   b.classList.toggle("on", b.dataset.r===range);
@@ -745,7 +755,7 @@ $("goToday").onclick = ()=>{ sel=dayStart(Date.now()); const [y,m]=dayKey(sel+12
 $("jump").addEventListener("change", e=>{ const v=e.target.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
   const [y,m,d]=v.split("-").map(Number); if(y<1990||y>2100) return; openDay(localDate(y,m-1,d)); });
 const selBase=$("optBase"); for(const [k,b] of [[DEFAULT_BASE,BASES[DEFAULT_BASE]],...Object.entries(BASES).filter(([k])=>k!==DEFAULT_BASE)]){ const o=document.createElement("option"); o.value=k; o.textContent=b.nome; selBase.appendChild(o); }
-if(!Object.values(BASES).some(b=>b.nr)) $("datumRow").hidden = true;
+
 if(MODE!=="web") $("windRow").hidden = true;
 selBase.value=opt.base; $("optDatum").value=opt.datum;
 $("optWind").checked=!!opt.wind; $("optOff").value=opt.off||0; $("optLag").value=opt.lag||0; $("optAmp").value=opt.amp||1;
